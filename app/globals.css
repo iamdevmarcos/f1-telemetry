@@ -1,0 +1,214 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #070708;
+  --bg-elevated: #101114;
+  --surface: #16181d;
+  --surface-hover: #1d2027;
+  --border: #2a2e38;
+  --text: #f4f4f5;
+  --muted: #8b909a;
+  --accent: #e10600;
+  --accent-soft: rgba(225, 6, 0, 0.16);
+  --driver-a: #ffffff;
+  --driver-b: #e10600;
+  --delta-pos: #ff5a5a;
+  --delta-neg: #3ddc97;
+  --chart-grid: rgba(255, 255, 255, 0.06);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --font-display: var(--font-teko);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(225, 6, 0, 0.18), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(255, 255, 255, 0.04), transparent 50%),
+    linear-gradient(180deg, #0b0b0d 0%, var(--bg) 40%, #050506 100%);
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+}
+
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-bar {
+  width: 0.35rem;
+  height: 2.4rem;
+  background: var(--accent);
+  box-shadow: 0 0 24px rgba(225, 6, 0, 0.45);
+}
+
+.brand-title {
+  font-family: var(--font-teko), sans-serif;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.brand-subtitle {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.panel {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.select-control {
+  width: 100%;
+  appearance: none;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-size: 0.85rem;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.select-control:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.select-control:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.select-control:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cta-button {
+  width: 100%;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  font-family: var(--font-teko), sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: transform 140ms ease, filter 140ms ease, opacity 140ms ease;
+}
+
+.cta-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.cta-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.delta-value {
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta-faster {
+  color: var(--delta-neg);
+}
+
+.delta-slower {
+  color: var(--delta-pos);
+}
+
+.delta-neutral {
+  color: var(--muted);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise-in 320ms ease both;
+}
+
+.timing-skeleton {
+  height: 4.5rem;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.03)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+  border: 1px solid var(--border);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--chart-grid);
+}
