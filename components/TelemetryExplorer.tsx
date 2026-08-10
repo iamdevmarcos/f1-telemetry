@@ -19,15 +19,52 @@ import { formatSessionRaceLabel } from "@/lib/format";
 
 type ExplorerMode = "compare" | "replay";
 
+type ExplorerError = {
+  title?: string;
+  message: string;
+};
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
-  const payload = (await response.json()) as T & { error?: string };
+  const payload = (await response.json()) as T & {
+    error?: string;
+    title?: string;
+  };
 
   if (!response.ok) {
-    throw new Error(payload.error || "Request failed");
+    throw {
+      title: payload.title,
+      message: payload.error || "Request failed",
+    } satisfies ExplorerError;
   }
 
   return payload;
+}
+
+function toExplorerError(
+  loadError: unknown,
+  fallbackMessage: string,
+): ExplorerError {
+  if (
+    typeof loadError === "object" &&
+    loadError !== null &&
+    "message" in loadError &&
+    typeof loadError.message === "string"
+  ) {
+    return {
+      title:
+        "title" in loadError && typeof loadError.title === "string"
+          ? loadError.title
+          : undefined,
+      message: loadError.message,
+    };
+  }
+
+  if (loadError instanceof Error) {
+    return { message: loadError.message };
+  }
+
+  return { message: fallbackMessage };
 }
 
 export function TelemetryExplorer() {
@@ -48,7 +85,7 @@ export function TelemetryExplorer() {
   const [loadingLaps, setLoadingLaps] = useState(false);
   const [comparing, setComparing] = useState(false);
   const [loadingReplay, setLoadingReplay] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ExplorerError | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,11 +100,7 @@ export function TelemetryExplorer() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Failed to load sessions",
-          );
+          setError(toExplorerError(loadError, "Failed to load sessions"));
         }
       } finally {
         if (!cancelled) {
@@ -115,11 +148,7 @@ export function TelemetryExplorer() {
       );
       setDrivers(data.drivers);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load drivers",
-      );
+      setError(toExplorerError(loadError, "Failed to load drivers"));
     } finally {
       setLoadingDrivers(false);
     }
@@ -144,9 +173,7 @@ export function TelemetryExplorer() {
         );
         setLaps(data.laps);
       } catch (loadError) {
-        setError(
-          loadError instanceof Error ? loadError.message : "Failed to load laps",
-        );
+        setError(toExplorerError(loadError, "Failed to load laps"));
       } finally {
         setLoadingLaps(false);
       }
@@ -169,11 +196,7 @@ export function TelemetryExplorer() {
       );
       setResult(data);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to compare drivers",
-      );
+      setError(toExplorerError(loadError, "Failed to compare drivers"));
     } finally {
       setComparing(false);
     }
@@ -198,11 +221,7 @@ export function TelemetryExplorer() {
       );
       setReplay(data.replay);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load race replay",
-      );
+      setError(toExplorerError(loadError, "Failed to load race replay"));
     } finally {
       setLoadingReplay(false);
     }
@@ -287,7 +306,10 @@ export function TelemetryExplorer() {
         <div className="space-y-4">
           {error ? (
             <div className="panel animate-rise border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-sm">
-              {error}
+              {error.title ? (
+                <p className="field-label text-[var(--accent)]">{error.title}</p>
+              ) : null}
+              <p className={error.title ? "mt-2" : undefined}>{error.message}</p>
             </div>
           ) : null}
 

@@ -29,18 +29,19 @@ function getSessionYears(): number[] {
 }
 
 export async function listSessions(): Promise<Session[]> {
-  const results = await Promise.all(
-    getSessionYears().map(async (year) => {
-      try {
-        return await fetchSessionsByYear(year);
-      } catch (error) {
-        if (error instanceof OpenF1Error) {
-          return [];
-        }
-        throw error;
+  const years = getSessionYears();
+  const results: Awaited<ReturnType<typeof fetchSessionsByYear>>[] = [];
+
+  for (const year of years) {
+    try {
+      results.push(await fetchSessionsByYear(year));
+    } catch (error) {
+      if (error instanceof OpenF1Error) {
+        continue;
       }
-    }),
-  );
+      throw error;
+    }
+  }
 
   const sessions = results
     .flat()

@@ -30,31 +30,7 @@ import {
   mapSession,
 } from "@/lib/infrastructure/openf1/mappers";
 
-const CHUNK_SIZE = 6;
-const CONCURRENCY = 3;
-
-async function mapPool<T, R>(
-  items: T[],
-  concurrency: number,
-  worker: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  let index = 0;
-
-  async function run(): Promise<void> {
-    while (index < items.length) {
-      const current = index;
-      index += 1;
-      results[current] = await worker(items[current]!);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => run()),
-  );
-
-  return results;
-}
+const CHUNK_SIZE = 10;
 
 function chunkLaps(laps: Lap[]): Lap[][] {
   const chunks: Lap[][] = [];
@@ -62,6 +38,42 @@ function chunkLaps(laps: Lap[]): Lap[][] {
     chunks.push(laps.slice(index, index + CHUNK_SIZE));
   }
   return chunks;
+}
+
+async function loadDriverTelemetry(
+  sessionKey: number,
+  driverNumber: number,
+  laps: Lap[],
+): Promise<{ locations: OpenF1Location[]; carData: OpenF1CarData[] }> {
+  const chunks = chunkLaps(laps);
+  const locations: OpenF1Location[] = [];
+  const carData: OpenF1CarData[] = [];
+
+  for (const chunk of chunks) {
+    const window = chunkWindow(chunk);
+    if (!window) {
+      continue;
+    }
+
+    locations.push(
+      ...(await fetchLocationForWindow(
+        sessionKey,
+        driverNumber,
+        window.start,
+        window.end,
+      )),
+    );
+    carData.push(
+      ...(await fetchCarDataForWindow(
+        sessionKey,
+        driverNumber,
+        window.start,
+        window.end,
+      )),
+    );
+  }
+
+  return { locations, carData };
 }
 
 function chunkWindow(laps: Lap[]): { start: string; end: string } | null {
@@ -89,32 +101,6 @@ async function loadTimedLaps(
     .map(mapLap)
     .filter((lap) => lap.dateStart !== null && lap.lapTimeSeconds !== null)
     .sort((a, b) => a.lapNumber - b.lapNumber);
-}
-
-async function loadDriverTelemetry(
-  sessionKey: number,
-  driverNumber: number,
-  laps: Lap[],
-): Promise<{ locations: OpenF1Location[]; carData: OpenF1CarData[] }> {
-  const chunks = chunkLaps(laps);
-  const chunkPayloads = await mapPool(chunks, CONCURRENCY, async (chunk) => {
-    const window = chunkWindow(chunk);
-    if (!window) {
-      return { locations: [], carData: [] };
-    }
-
-    const [locations, carData] = await Promise.all([
-      fetchLocationForWindow(sessionKey, driverNumber, window.start, window.end),
-      fetchCarDataForWindow(sessionKey, driverNumber, window.start, window.end),
-    ]);
-
-    return { locations, carData };
-  });
-
-  return {
-    locations: chunkPayloads.flatMap((payload) => payload.locations),
-    carData: chunkPayloads.flatMap((payload) => payload.carData),
-  };
 }
 
 function buildFramesForDriver(input: {
@@ -207,16 +193,11 @@ export async function getRaceReplay(input: {
   }
   const raceStartMs = Math.min(...raceStartCandidates);
 
-  const telemetryAPromise = loadDriverTelemetry(sessionKey, driverNumber, lapsA);
-  const telemetryBPromise =
+  const telemetryA = await loadDriverTelemetry(sessionKey, driverNumber, lapsA);
+  const telemetryB =
     driverBNumber !== null && lapsB
-      ? loadDriverTelemetry(sessionKey, driverBNumber, lapsB)
-      : Promise.resolve(null);
-
-  const [telemetryA, telemetryB] = await Promise.all([
-    telemetryAPromise,
-    telemetryBPromise,
-  ]);
+      ? await loadDriverTelemetry(sessionKey, driverBNumber, lapsB)
+      : null;
 
   if (telemetryA.locations.length === 0) {
     throw new OpenF1Error("Location data unavailable for this race", 404);
