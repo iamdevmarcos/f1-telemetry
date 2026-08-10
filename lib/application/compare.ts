@@ -67,8 +67,18 @@ export async function compareDrivers(input: {
     throw new OpenF1Error("Driver not found", 404);
   }
 
-  if (!rawLapA || !rawLapB) {
-    throw new OpenF1Error("Lap not found for one or both drivers", 404);
+  if (!rawLapA) {
+    throw new OpenF1Error(
+      `Lap ${input.lapNumber} not found for the selected driver`,
+      400,
+    );
+  }
+
+  if (!rawLapB) {
+    throw new OpenF1Error(
+      `Lap ${input.lapNumber} was not completed by both drivers. Choose a lap both drivers finished.`,
+      400,
+    );
   }
 
   const lapA = mapLap(rawLapA);

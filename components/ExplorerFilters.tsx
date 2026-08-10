@@ -7,6 +7,7 @@ interface ExplorerFiltersProps {
   sessions: Session[];
   drivers: Driver[];
   laps: Lap[];
+  comparableLapNumbers: number[];
   sessionId: string;
   driverAId: string;
   driverBId: string;
@@ -26,6 +27,7 @@ export function ExplorerFilters({
   sessions,
   drivers,
   laps,
+  comparableLapNumbers,
   sessionId,
   driverAId,
   driverBId,
@@ -40,9 +42,13 @@ export function ExplorerFilters({
   onLapChange,
   onCompare,
 }: ExplorerFiltersProps) {
+  const comparableSet = new Set(comparableLapNumbers);
+  const selectedLapComparable =
+    !lapNumber || comparableSet.has(Number(lapNumber));
   const canCompare =
     Boolean(sessionId && driverAId && driverBId && lapNumber) &&
     driverAId !== driverBId &&
+    selectedLapComparable &&
     !comparing;
 
   const sessionsByYear = sessions.reduce<Map<number, Session[]>>((groups, session) => {
@@ -139,17 +145,31 @@ export function ExplorerFilters({
         <select
           className="select-control"
           value={lapNumber}
-          disabled={!driverAId || loadingLaps}
+          disabled={!driverAId || loadingLaps || !driverBId}
           onChange={(event) => onLapChange(event.target.value)}
         >
           <option value="">
-            {loadingLaps ? "Loading laps…" : "Choose lap"}
+            {loadingLaps
+              ? "Loading laps…"
+              : !driverBId
+                ? "Choose driver B first"
+                : comparableLapNumbers.length === 0
+                  ? "No shared laps"
+                  : "Choose lap"}
           </option>
-          {laps.map((lap) => (
-            <option key={lap.lapNumber} value={String(lap.lapNumber)}>
-              Lap {lap.lapNumber}
-            </option>
-          ))}
+          {laps.map((lap) => {
+            const isComparable = comparableSet.has(lap.lapNumber);
+            return (
+              <option
+                key={lap.lapNumber}
+                value={String(lap.lapNumber)}
+                disabled={!isComparable}
+              >
+                Lap {lap.lapNumber}
+                {!isComparable ? " · not completed by both" : ""}
+              </option>
+            );
+          })}
         </select>
       </label>
 

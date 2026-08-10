@@ -6,7 +6,7 @@ import type { ReplayFrame, TrackPoint } from "@/lib/domain/types";
 
 export interface TrackCar {
   frame: ReplayFrame | null;
-  trail: TrackPoint[];
+  trailSegments: TrackPoint[][];
   colour: string;
   label: string;
 }
@@ -41,7 +41,7 @@ function flipY(point: TrackPoint): TrackPoint {
 }
 
 function toPath(points: TrackPoint[]): string {
-  if (points.length === 0) {
+  if (points.length < 2) {
     return "";
   }
 
@@ -60,16 +60,10 @@ export function TrackMap({
   trackPath: TrackPoint[];
   cars: TrackCar[];
 }) {
-  const bounds = useMemo(() => {
-    const points = [
-      ...trackPath,
-      ...cars.flatMap((car) => [
-        ...car.trail,
-        ...(car.frame ? [{ x: car.frame.x, y: car.frame.y }] : []),
-      ]),
-    ].map(flipY);
-    return buildViewBox(points);
-  }, [trackPath, cars]);
+  const bounds = useMemo(
+    () => buildViewBox(trackPath.map(flipY)),
+    [trackPath],
+  );
 
   const trackD = useMemo(() => toPath(trackPath), [trackPath]);
   const strokeBase = Math.max(bounds.width, bounds.height);
@@ -96,23 +90,32 @@ export function TrackMap({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {cars.map((car) => {
-          const trailD = toPath(car.trail);
+        {cars.map((car, carIndex) => {
           const carPoint = car.frame
             ? flipY({ x: car.frame.x, y: car.frame.y })
             : null;
 
           return (
-            <g key={car.label}>
-              <path
-                d={trailD}
-                fill="none"
-                stroke={car.colour}
-                strokeOpacity={0.7}
-                strokeWidth={strokeBase * 0.008}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+            <g key={`${car.label}-${carIndex}`}>
+              {car.trailSegments.map((segment, segmentIndex) => {
+                const trailD = toPath(segment);
+                if (!trailD) {
+                  return null;
+                }
+
+                return (
+                  <path
+                    key={`${car.label}-trail-${segmentIndex}`}
+                    d={trailD}
+                    fill="none"
+                    stroke={car.colour}
+                    strokeOpacity={0.7}
+                    strokeWidth={strokeBase * 0.008}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                );
+              })}
               {carPoint ? (
                 <g>
                   <circle
@@ -139,9 +142,9 @@ export function TrackMap({
 
       {cars.length > 1 ? (
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-2">
-          {cars.map((car) => (
+          {cars.map((car, carIndex) => (
             <span
-              key={`legend-${car.label}`}
+              key={`legend-${car.label}-${carIndex}`}
               className="border border-[var(--border)] bg-black/55 px-2 py-1 text-[0.68rem] uppercase tracking-[0.14em]"
             >
               <span

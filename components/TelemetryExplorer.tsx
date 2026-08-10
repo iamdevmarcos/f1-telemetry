@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
@@ -9,7 +9,13 @@ import { ExplorerFilters } from "@/components/ExplorerFilters";
 import { ModeNav } from "@/components/ModeNav";
 import { RaceReplayPlayer } from "@/components/RaceReplayPlayer";
 import { ReplayFilters } from "@/components/ReplayFilters";
+import { ShareButtons } from "@/components/ShareButtons";
 import { TelemetryCharts } from "@/components/TelemetryCharts";
+import {
+  buildCompareSharePath,
+  buildReplaySharePath,
+  parseExplorerShareParams,
+} from "@/lib/domain/share-links";
 import type {
   CompareResult,
   Driver,
@@ -69,6 +75,13 @@ function toExplorerError(
   return { message: fallbackMessage };
 }
 
+function syncBrowserPath(path: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.history.replaceState(window.history.state, "", path);
+}
+
 export function TelemetryExplorer() {
   const searchParams = useSearchParams();
   const mode: ExplorerMode =
@@ -76,6 +89,9 @@ export function TelemetryExplorer() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [laps, setLaps] = useState<Lap[]>([]);
+  const [comparableLapNumbers, setComparableLapNumbers] = useState<number[]>(
+    [],
+  );
   const [sessionId, setSessionId] = useState("");
   const [driverAId, setDriverAId] = useState("");
   const [driverBId, setDriverBId] = useState("");
@@ -90,10 +106,13 @@ export function TelemetryExplorer() {
   const [comparing, setComparing] = useState(false);
   const [loadingReplay, setLoadingReplay] = useState(false);
   const [error, setError] = useState<ExplorerError | null>(null);
+  const [errorMode, setErrorMode] = useState(mode);
+  const didBootstrapRef = useRef(false);
 
-  useEffect(() => {
+  if (mode !== errorMode) {
+    setErrorMode(mode);
     setError(null);
-  }, [mode]);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -132,41 +151,106 @@ export function TelemetryExplorer() {
     ? `${selectedSession.year} · ${formatSessionRaceLabel(selectedSession, sessions)}`
     : undefined;
 
-  const handleSessionChange = useCallback(async (nextSessionId: string) => {
-    setSessionId(nextSessionId);
-    setDriverAId("");
-    setDriverBId("");
-    setReplayDriverId("");
-    setReplayDriverBId("");
-    setLapNumber("");
-    setLaps([]);
-    setDrivers([]);
-    setResult(null);
-    setReplay(null);
-    setError(null);
-
-    if (!nextSessionId) {
-      return;
-    }
-
+  const loadDriversForSession = useCallback(async (nextSessionId: string) => {
     setLoadingDrivers(true);
     try {
       const data = await fetchJson<{ drivers: Driver[] }>(
         `/api/sessions/${nextSessionId}/drivers`,
       );
       setDrivers(data.drivers);
+      return data.drivers;
     } catch (loadError) {
       setError(toExplorerError(loadError, "Failed to load drivers"));
+      return [] as Driver[];
     } finally {
       setLoadingDrivers(false);
     }
   }, []);
+
+  const handleSessionChange = useCallback(
+    async (nextSessionId: string) => {
+      setSessionId(nextSessionId);
+      setDriverAId("");
+      setDriverBId("");
+      setReplayDriverId("");
+      setReplayDriverBId("");
+      setLapNumber("");
+      setLaps([]);
+      setComparableLapNumbers([]);
+      setDrivers([]);
+      setResult(null);
+      setReplay(null);
+      setError(null);
+
+      if (!nextSessionId) {
+        return;
+      }
+
+      await loadDriversForSession(nextSessionId);
+    },
+    [loadDriversForSession],
+  );
+
+  const loadComparableLaps = useCallback(
+    async (
+      nextSessionId: string,
+      driverA: string,
+      driverB?: string,
+      preferredLap?: string,
+    ) => {
+      if (!nextSessionId || !driverA) {
+        return [] as number[];
+      }
+
+      setLoadingLaps(true);
+      try {
+        const params = new URLSearchParams({ driverId: driverA });
+        if (driverB) {
+          params.set("driverBId", driverB);
+        }
+
+        const data = await fetchJson<{
+          laps: Lap[];
+          comparableLapNumbers: number[];
+        }>(`/api/sessions/${nextSessionId}/laps?${params.toString()}`);
+
+        setLaps(data.laps);
+        setComparableLapNumbers(data.comparableLapNumbers);
+
+        if (preferredLap) {
+          const lapValue = Number(preferredLap);
+          setLapNumber(
+            data.comparableLapNumbers.includes(lapValue) ? preferredLap : "",
+          );
+        } else {
+          setLapNumber((current) => {
+            if (
+              current &&
+              !data.comparableLapNumbers.includes(Number(current))
+            ) {
+              return "";
+            }
+            return current;
+          });
+        }
+
+        return data.comparableLapNumbers;
+      } catch (loadError) {
+        setError(toExplorerError(loadError, "Failed to load laps"));
+        return [] as number[];
+      } finally {
+        setLoadingLaps(false);
+      }
+    },
+    [],
+  );
 
   const handleDriverAChange = useCallback(
     async (nextDriverId: string) => {
       setDriverAId(nextDriverId);
       setLapNumber("");
       setLaps([]);
+      setComparableLapNumbers([]);
       setResult(null);
       setError(null);
 
@@ -174,19 +258,35 @@ export function TelemetryExplorer() {
         return;
       }
 
-      setLoadingLaps(true);
-      try {
-        const data = await fetchJson<{ laps: Lap[] }>(
-          `/api/sessions/${sessionId}/laps?driverId=${nextDriverId}`,
-        );
-        setLaps(data.laps);
-      } catch (loadError) {
-        setError(toExplorerError(loadError, "Failed to load laps"));
-      } finally {
-        setLoadingLaps(false);
-      }
+      await loadComparableLaps(
+        sessionId,
+        nextDriverId,
+        driverBId && driverBId !== nextDriverId ? driverBId : undefined,
+      );
     },
-    [sessionId],
+    [sessionId, driverBId, loadComparableLaps],
+  );
+
+  const handleDriverBChange = useCallback(
+    async (nextDriverId: string) => {
+      setDriverBId(nextDriverId);
+      setLapNumber("");
+      setResult(null);
+      setError(null);
+
+      if (!sessionId || !driverAId || !nextDriverId) {
+        setComparableLapNumbers([]);
+        return;
+      }
+
+      if (nextDriverId === driverAId) {
+        setComparableLapNumbers([]);
+        return;
+      }
+
+      await loadComparableLaps(sessionId, driverAId, nextDriverId);
+    },
+    [sessionId, driverAId, loadComparableLaps],
   );
 
   const handleCompare = useCallback(async () => {
@@ -203,6 +303,14 @@ export function TelemetryExplorer() {
         `/api/sessions/${sessionId}/compare?driverA=${driverAId}&driverB=${driverBId}&lap=${lapNumber}`,
       );
       setResult(data);
+      syncBrowserPath(
+        buildCompareSharePath({
+          sessionId,
+          driverAId,
+          driverBId,
+          lapNumber,
+        }),
+      );
     } catch (loadError) {
       setError(toExplorerError(loadError, "Failed to compare drivers"));
     } finally {
@@ -228,12 +336,202 @@ export function TelemetryExplorer() {
         `/api/sessions/${sessionId}/replay?${params.toString()}`,
       );
       setReplay(data.replay);
+      syncBrowserPath(
+        buildReplaySharePath({
+          sessionId,
+          driverId: replayDriverId,
+          driverBId: replayDriverBId || undefined,
+        }),
+      );
     } catch (loadError) {
       setError(toExplorerError(loadError, "Failed to load race replay"));
     } finally {
       setLoadingReplay(false);
     }
   }, [sessionId, replayDriverId, replayDriverBId]);
+
+  useEffect(() => {
+    if (didBootstrapRef.current || loadingSessions || sessions.length === 0) {
+      return;
+    }
+
+    didBootstrapRef.current = true;
+
+    const parsed = parseExplorerShareParams(
+      new URLSearchParams(searchParams.toString()),
+    );
+
+    if (!parsed.sessionId) {
+      return;
+    }
+
+    void (async () => {
+      const sessionExists = sessions.some(
+        (session) => session.id === parsed.sessionId,
+      );
+      if (!sessionExists) {
+        setError({
+          message: "Shared race was not found in the available sessions.",
+        });
+        return;
+      }
+
+      setSessionId(parsed.sessionId!);
+      setError(null);
+
+      const loadedDrivers = await loadDriversForSession(parsed.sessionId!);
+      if (loadedDrivers.length === 0) {
+        return;
+      }
+
+      if (parsed.mode === "replay" && parsed.driverId) {
+        const driverOk = loadedDrivers.some(
+          (driver) => driver.id === parsed.driverId,
+        );
+        if (!driverOk) {
+          setError({ message: "Shared driver was not found for this race." });
+          return;
+        }
+
+        const driverBOk =
+          !parsed.driverBId ||
+          loadedDrivers.some((driver) => driver.id === parsed.driverBId);
+
+        if (!driverBOk) {
+          setError({
+            message: "Shared second driver was not found for this race.",
+          });
+          return;
+        }
+
+        setReplayDriverId(parsed.driverId);
+        setReplayDriverBId(parsed.driverBId ?? "");
+        setLoadingReplay(true);
+        setReplay(null);
+
+        try {
+          const params = new URLSearchParams({ driverId: parsed.driverId });
+          if (parsed.driverBId) {
+            params.set("driverBId", parsed.driverBId);
+          }
+          const data = await fetchJson<{ replay: RaceReplay }>(
+            `/api/sessions/${parsed.sessionId}/replay?${params.toString()}`,
+          );
+          setReplay(data.replay);
+          syncBrowserPath(
+            buildReplaySharePath({
+              sessionId: parsed.sessionId!,
+              driverId: parsed.driverId,
+              driverBId: parsed.driverBId ?? undefined,
+            }),
+          );
+        } catch (loadError) {
+          setError(toExplorerError(loadError, "Failed to load race replay"));
+        } finally {
+          setLoadingReplay(false);
+        }
+        return;
+      }
+
+      if (
+        parsed.mode === "compare" &&
+        parsed.driverAId &&
+        parsed.driverBId &&
+        parsed.lapNumber
+      ) {
+        const driverAOk = loadedDrivers.some(
+          (driver) => driver.id === parsed.driverAId,
+        );
+        const driverBOk = loadedDrivers.some(
+          (driver) => driver.id === parsed.driverBId,
+        );
+
+        if (!driverAOk || !driverBOk) {
+          setError({
+            message: "Shared drivers were not found for this race.",
+          });
+          return;
+        }
+
+        setDriverAId(parsed.driverAId);
+        setDriverBId(parsed.driverBId);
+
+        const comparable = await loadComparableLaps(
+          parsed.sessionId!,
+          parsed.driverAId,
+          parsed.driverBId,
+          parsed.lapNumber,
+        );
+
+        if (!comparable.includes(Number(parsed.lapNumber))) {
+          setError({
+            message:
+              "Shared lap was not completed by both drivers. Choose another lap.",
+          });
+          return;
+        }
+
+        setComparing(true);
+        setResult(null);
+
+        try {
+          const data = await fetchJson<CompareResult>(
+            `/api/sessions/${parsed.sessionId}/compare?driverA=${parsed.driverAId}&driverB=${parsed.driverBId}&lap=${parsed.lapNumber}`,
+          );
+          setResult(data);
+          syncBrowserPath(
+            buildCompareSharePath({
+              sessionId: parsed.sessionId!,
+              driverAId: parsed.driverAId,
+              driverBId: parsed.driverBId,
+              lapNumber: parsed.lapNumber,
+            }),
+          );
+        } catch (loadError) {
+          setError(toExplorerError(loadError, "Failed to compare drivers"));
+        } finally {
+          setComparing(false);
+        }
+      }
+    })();
+  }, [
+    loadingSessions,
+    sessions,
+    searchParams,
+    loadDriversForSession,
+    loadComparableLaps,
+  ]);
+
+  const compareSharePath =
+    result && sessionId && driverAId && driverBId && lapNumber
+      ? buildCompareSharePath({
+          sessionId,
+          driverAId,
+          driverBId,
+          lapNumber,
+        })
+      : null;
+
+  const replaySharePath =
+    replay && sessionId && replayDriverId
+      ? buildReplaySharePath({
+          sessionId,
+          driverId: replayDriverId,
+          driverBId: replayDriverBId || undefined,
+        })
+      : null;
+
+  const compareShareTitle = result
+    ? `${result.comparison.driverA.acronym} vs ${result.comparison.driverB.acronym} · Lap ${result.comparison.lapNumber}`
+    : "F1 Apex compare";
+
+  const replayShareTitle = replay
+    ? replay.driverB
+      ? `${replay.driver.acronym} vs ${replay.driverB.acronym} · Race replay`
+      : `${replay.driver.acronym} · Race replay`
+    : "F1 Apex replay";
+
+  const visibleError = errorMode === mode ? error : null;
 
   return (
     <AppShell
@@ -248,6 +546,7 @@ export function TelemetryExplorer() {
             sessions={sessions}
             drivers={drivers}
             laps={laps}
+            comparableLapNumbers={comparableLapNumbers}
             sessionId={sessionId}
             driverAId={driverAId}
             driverBId={driverBId}
@@ -262,7 +561,9 @@ export function TelemetryExplorer() {
             onDriverAChange={(value) => {
               void handleDriverAChange(value);
             }}
-            onDriverBChange={setDriverBId}
+            onDriverBChange={(value) => {
+              void handleDriverBChange(value);
+            }}
             onLapChange={setLapNumber}
             onCompare={() => {
               void handleCompare();
@@ -295,12 +596,16 @@ export function TelemetryExplorer() {
         )}
 
         <div className="space-y-4">
-          {error ? (
+          {visibleError ? (
             <div className="panel animate-rise border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-sm">
-              {error.title ? (
-                <p className="field-label text-[var(--accent)]">{error.title}</p>
+              {visibleError.title ? (
+                <p className="field-label text-[var(--accent)]">
+                  {visibleError.title}
+                </p>
               ) : null}
-              <p className={error.title ? "mt-2" : undefined}>{error.message}</p>
+              <p className={visibleError.title ? "mt-2" : undefined}>
+                {visibleError.message}
+              </p>
             </div>
           ) : null}
 
@@ -313,7 +618,7 @@ export function TelemetryExplorer() {
                 </div>
               ) : null}
 
-              {!comparing && !result && !error ? (
+              {!comparing && !result && !visibleError ? (
                 <div className="panel animate-rise p-6">
                   <p className="field-label">Ready</p>
                   <h2 className="font-[family-name:var(--font-teko)] text-4xl uppercase leading-none">
@@ -326,8 +631,17 @@ export function TelemetryExplorer() {
                 </div>
               ) : null}
 
-              {result ? (
+              {result && compareSharePath ? (
                 <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Share this comparison
+                    </p>
+                    <ShareButtons
+                      title={compareShareTitle}
+                      url={compareSharePath}
+                    />
+                  </div>
                   <ComparisonPanel comparison={result.comparison} />
                   {result.comparison.telemetryA.length === 0 &&
                   result.comparison.telemetryB.length === 0 ? (
@@ -352,7 +666,7 @@ export function TelemetryExplorer() {
                 </div>
               ) : null}
 
-              {!loadingReplay && !replay && !error ? (
+              {!loadingReplay && !replay && !visibleError ? (
                 <div className="panel animate-rise p-6">
                   <p className="field-label">Ready</p>
                   <h2 className="font-[family-name:var(--font-teko)] text-4xl uppercase leading-none">
@@ -366,11 +680,22 @@ export function TelemetryExplorer() {
                 </div>
               ) : null}
 
-              {replay ? (
-                <RaceReplayPlayer
-                  key={`${replay.session.id}-${replay.driver.id}-${replay.driverB?.id ?? "solo"}`}
-                  replay={replay}
-                />
+              {replay && replaySharePath ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Share this replay
+                    </p>
+                    <ShareButtons
+                      title={replayShareTitle}
+                      url={replaySharePath}
+                    />
+                  </div>
+                  <RaceReplayPlayer
+                    key={`${replay.session.id}-${replay.driver.id}-${replay.driverB?.id ?? "solo"}`}
+                    replay={replay}
+                  />
+                </>
               ) : null}
             </>
           )}

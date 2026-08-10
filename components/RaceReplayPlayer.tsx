@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { TrackMap } from "@/components/TrackMap";
+import {
+  buildCarTrailSegments,
+  trackSpan,
+} from "@/lib/domain/replay-trail";
 import type { Driver, Lap, RaceReplay, ReplayFrame } from "@/lib/domain/types";
 import { formatLapTime } from "@/lib/format";
 
@@ -71,14 +75,6 @@ function frameAtTime(frames: ReplayFrame[] | undefined, timeSeconds: number) {
   return { frame, index };
 }
 
-function trailFromFrames(frames: ReplayFrame[], index: number) {
-  const start = Math.max(0, index - 40);
-  return frames.slice(start, index + 1).map((item) => ({
-    x: item.x,
-    y: item.y,
-  }));
-}
-
 export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(4);
@@ -87,6 +83,7 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
   const lastStampRef = useRef<number | null>(null);
 
   const hasBattle = Boolean(replay.driverB && replay.framesB?.length);
+  const span = useMemo(() => trackSpan(replay.trackPath), [replay.trackPath]);
 
   const primary = useMemo(
     () => frameAtTime(replay.frames, timeSeconds),
@@ -111,7 +108,11 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
     const list = [
       {
         frame: primary.frame,
-        trail: trailFromFrames(replay.frames, primary.index),
+        trailSegments: buildCarTrailSegments(
+          replay.frames,
+          primary.index,
+          span,
+        ),
         colour: colourA,
         label: replay.driver.acronym,
       },
@@ -120,7 +121,11 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
     if (hasBattle && replay.framesB) {
       list.push({
         frame: secondary.frame,
-        trail: trailFromFrames(replay.framesB, secondary.index),
+        trailSegments: buildCarTrailSegments(
+          replay.framesB,
+          secondary.index,
+          span,
+        ),
         colour: distinctColourB,
         label: replay.driverB!.acronym,
       });
@@ -137,6 +142,7 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
     colourA,
     distinctColourB,
     hasBattle,
+    span,
   ]);
 
   const currentLapA = findLap(replay.laps, primary.frame?.lapNumber);

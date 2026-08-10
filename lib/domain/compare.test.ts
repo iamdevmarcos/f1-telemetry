@@ -61,6 +61,8 @@ describe("buildDriverComparison", () => {
     expect(comparison.sectors[0]?.deltaSeconds).toBe(-0.2);
     expect(comparison.sectors[1]?.deltaSeconds).toBe(0.2);
     expect(comparison.sectors[2]?.deltaSeconds).toBe(-0.3);
+    expect(comparison.metricsA.maxSpeedKph).toBeNull();
+    expect(comparison.metricsB.maxSpeedKph).toBeNull();
   });
 });
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Driver, Lap, Session } from "@/lib/domain/types";
+import { intersectLapNumbers } from "@/lib/domain/laps";
 import { isRaceAvailable } from "@/lib/domain/session";
 import {
   fetchDrivers,
@@ -103,4 +104,24 @@ export async function listLaps(
     .map(mapLap)
     .filter((lap) => lap.lapTimeSeconds !== null)
     .sort((a, b) => a.lapNumber - b.lapNumber);
+}
+
+export async function listComparableLaps(
+  sessionId: string,
+  driverAId: string,
+  driverBId?: string,
+): Promise<{ laps: Lap[]; comparableLapNumbers: number[] }> {
+  const lapsA = await listLaps(sessionId, driverAId);
+
+  if (!driverBId || driverBId === driverAId) {
+    return {
+      laps: lapsA,
+      comparableLapNumbers: lapsA.map((lap) => lap.lapNumber),
+    };
+  }
+
+  const lapsB = await listLaps(sessionId, driverBId);
+  const comparableLapNumbers = intersectLapNumbers(lapsA, lapsB);
+
+  return { laps: lapsA, comparableLapNumbers };
 }

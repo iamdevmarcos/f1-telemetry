@@ -41,6 +41,14 @@ export interface TelemetrySample {
   rpm: number;
 }
 
+export interface LapDrivingMetrics {
+  maxSpeedKph: number | null;
+  avgSpeedKph: number | null;
+  avgThrottlePercent: number | null;
+  fullThrottlePercent: number | null;
+  brakingPercent: number | null;
+}
+
 export interface SectorComparison {
   sector: 1 | 2 | 3;
   timeA: number | null;
@@ -58,6 +66,8 @@ export interface DriverComparison {
   sectors: SectorComparison[];
   telemetryA: TelemetrySample[];
   telemetryB: TelemetrySample[];
+  metricsA: LapDrivingMetrics;
+  metricsB: LapDrivingMetrics;
 }
 
 export interface CompareResult {

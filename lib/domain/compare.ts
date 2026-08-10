@@ -5,6 +5,7 @@ import type {
   SectorComparison,
   TelemetrySample,
 } from "@/lib/domain/types";
+import { computeLapDrivingMetrics } from "@/lib/domain/analysis/lap-metrics";
 
 function delta(
   timeA: number | null,
@@ -58,6 +59,8 @@ export function buildDriverComparison(input: {
     sectors: buildSectors(input.lapA, input.lapB),
     telemetryA: input.telemetryA,
     telemetryB: input.telemetryB,
+    metricsA: computeLapDrivingMetrics(input.telemetryA),
+    metricsB: computeLapDrivingMetrics(input.telemetryB),
   };
 }
 
