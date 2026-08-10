@@ -12,49 +12,18 @@ import {
   YAxis,
 } from "recharts";
 
-import type { DriverComparison, TelemetrySample } from "@/lib/domain/types";
+import type { DriverComparison } from "@/lib/domain/types";
+import {
+  buildSynchronizedSeries,
+  type TelemetryMetric,
+} from "@/lib/domain/telemetry-series";
 
-type MetricKey = "speed" | "throttle" | "brake" | "gear";
-
-const METRICS: Array<{ key: MetricKey; label: string; unit: string }> = [
+const METRICS: Array<{ key: TelemetryMetric; label: string; unit: string }> = [
   { key: "speed", label: "Speed", unit: "km/h" },
   { key: "throttle", label: "Throttle", unit: "%" },
   { key: "brake", label: "Brake", unit: "%" },
   { key: "gear", label: "Gear", unit: "" },
 ];
-
-function downsample(samples: TelemetrySample[], maxPoints: number): TelemetrySample[] {
-  if (samples.length <= maxPoints) {
-    return samples;
-  }
-
-  const step = Math.ceil(samples.length / maxPoints);
-  return samples.filter((_, index) => index % step === 0);
-}
-
-function buildSeries(
-  telemetryA: TelemetrySample[],
-  telemetryB: TelemetrySample[],
-  metric: MetricKey,
-) {
-  const a = downsample(telemetryA, 400);
-  const b = downsample(telemetryB, 400);
-  const map = new Map<number, { t: number; a?: number; b?: number }>();
-
-  for (const sample of a) {
-    const t = Number(sample.relativeTimeSeconds.toFixed(2));
-    map.set(t, { t, a: sample[metric] });
-  }
-
-  for (const sample of b) {
-    const t = Number(sample.relativeTimeSeconds.toFixed(2));
-    const existing = map.get(t) ?? { t };
-    existing.b = sample[metric];
-    map.set(t, existing);
-  }
-
-  return Array.from(map.values()).sort((left, right) => left.t - right.t);
-}
 
 export function TelemetryCharts({
   comparison,
@@ -69,9 +38,13 @@ export function TelemetryCharts({
     return Object.fromEntries(
       METRICS.map((metric) => [
         metric.key,
-        buildSeries(comparison.telemetryA, comparison.telemetryB, metric.key),
+        buildSynchronizedSeries(
+          comparison.telemetryA,
+          comparison.telemetryB,
+          metric.key,
+        ),
       ]),
-    ) as Record<MetricKey, Array<{ t: number; a?: number; b?: number }>>;
+    ) as Record<TelemetryMetric, Array<{ t: number; a?: number; b?: number }>>;
   }, [comparison]);
 
   return (
@@ -154,6 +127,7 @@ export function TelemetryCharts({
                   stroke={colourA}
                   dot={false}
                   strokeWidth={1.8}
+                  connectNulls
                   isAnimationActive={false}
                 />
                 <Line
@@ -162,6 +136,7 @@ export function TelemetryCharts({
                   stroke={colourB}
                   dot={false}
                   strokeWidth={1.8}
+                  connectNulls
                   isAnimationActive={false}
                 />
               </LineChart>
