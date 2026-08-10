@@ -212,3 +212,52 @@ body {
 .recharts-cartesian-grid-vertical line {
   stroke: var(--chart-grid);
 }
+
+.news-prose p {
+  margin: 0 0 1rem;
+}
+
+.news-prose h2,
+.news-prose h3,
+.news-prose h4 {
+  font-family: var(--font-teko), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.news-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.news-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem 0;
+  border: 1px solid var(--border);
+}
+
+.news-prose ul,
+.news-prose ol {
+  margin: 0 0 1rem 1.25rem;
+  padding: 0;
+}
+
+.news-prose blockquote {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  background: var(--accent-soft);
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

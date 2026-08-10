@@ -10,12 +10,12 @@ export const OPENF1_USER_MESSAGES = {
   rateLimit: {
     title: "Rate limit reached",
     message:
-      "This app uses OpenF1's free API, which limits how many requests we can make. Wait a few seconds and try again.",
+      "Telemetry data requests are temporarily limited. Wait a few seconds and try again.",
   },
   unavailable: {
-    title: "OpenF1 unavailable",
+    title: "Data unavailable",
     message:
-      "We couldn't reach OpenF1 right now. The free API can be slow or briefly offline — try again in a moment.",
+      "We couldn't load telemetry data right now. Try again in a moment.",
   },
 } as const;
 

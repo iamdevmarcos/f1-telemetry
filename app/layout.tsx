@@ -16,16 +16,16 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "F1 Telemetry Explorer",
+  title: "F1 Apex",
   description:
     "Formula 1 race replay and lap telemetry comparison. Watch drivers on track or compare speed, throttle, brake and gear traces.",
   metadataBase: process.env.VERCEL_URL
     ? new URL(`https://${process.env.VERCEL_URL}`)
     : undefined,
   openGraph: {
-    title: "F1 Telemetry Explorer",
+    title: "F1 Apex",
     description:
-      "Formula 1 race replay and lap telemetry comparison powered by OpenF1.",
+      "Formula 1 race replay and lap telemetry comparison. Watch drivers on track or compare synchronized telemetry traces.",
     type: "website",
   },
 };

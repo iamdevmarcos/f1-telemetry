@@ -16,8 +16,8 @@ export function AppShell({
           <div className="brand-mark animate-rise min-w-0">
             <span className="brand-bar" aria-hidden />
             <div className="min-w-0">
-              <h1 className="brand-title">F1 Telemetry Explorer</h1>
-              <p className="brand-subtitle">{modeLabel} · OpenF1</p>
+              <h1 className="brand-title">F1 Apex</h1>
+              <p className="brand-subtitle">{modeLabel}</p>
             </div>
           </div>
           <div className="animate-rise min-w-0 md:pb-1 md:text-right">

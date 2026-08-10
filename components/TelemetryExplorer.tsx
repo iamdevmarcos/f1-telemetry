@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
 import { ExplorerFilters } from "@/components/ExplorerFilters";
+import { ModeNav } from "@/components/ModeNav";
 import { RaceReplayPlayer } from "@/components/RaceReplayPlayer";
 import { ReplayFilters } from "@/components/ReplayFilters";
 import { TelemetryCharts } from "@/components/TelemetryCharts";
@@ -68,7 +70,9 @@ function toExplorerError(
 }
 
 export function TelemetryExplorer() {
-  const [mode, setMode] = useState<ExplorerMode>("replay");
+  const searchParams = useSearchParams();
+  const mode: ExplorerMode =
+    searchParams.get("mode") === "compare" ? "compare" : "replay";
   const [sessions, setSessions] = useState<Session[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [laps, setLaps] = useState<Lap[]>([]);
@@ -86,6 +90,10 @@ export function TelemetryExplorer() {
   const [comparing, setComparing] = useState(false);
   const [loadingReplay, setLoadingReplay] = useState(false);
   const [error, setError] = useState<ExplorerError | null>(null);
+
+  useEffect(() => {
+    setError(null);
+  }, [mode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -232,24 +240,7 @@ export function TelemetryExplorer() {
       contextLabel={contextLabel}
       modeLabel={mode === "compare" ? "Lap comparison" : "Race replay"}
     >
-      <div className="mb-5 flex flex-wrap gap-2">
-        <ModeButton
-          active={mode === "replay"}
-          label="Race replay"
-          onClick={() => {
-            setMode("replay");
-            setError(null);
-          }}
-        />
-        <ModeButton
-          active={mode === "compare"}
-          label="Compare lap"
-          onClick={() => {
-            setMode("compare");
-            setError(null);
-          }}
-        />
-      </div>
+      <ModeNav active={mode} />
 
       <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         {mode === "compare" ? (
@@ -386,34 +377,5 @@ export function TelemetryExplorer() {
         </div>
       </div>
     </AppShell>
-  );
-}
-
-function ModeButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="select-control !w-auto cursor-pointer px-4 font-[family-name:var(--font-teko)] text-xl uppercase tracking-wide"
-      style={
-        active
-          ? {
-              borderColor: "var(--accent)",
-              background: "var(--accent)",
-              color: "white",
-            }
-          : undefined
-      }
-    >
-      {label}
-    </button>
   );
 }

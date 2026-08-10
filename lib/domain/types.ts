@@ -95,3 +95,27 @@ export interface RaceReplay {
   durationSeconds: number;
   totalLaps: number;
 }
+
+export interface NewsArticle {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  bodyHtml: string;
+  imageUrl: string | null;
+  sourceName: string;
+  sourceUrl: string;
+  publishedAt: string;
+  scrapedAt: string;
+}
+
+export interface NewsArticleTeaser {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  imageUrl: string | null;
+  sourceName: string;
+  sourceUrl: string;
+  publishedAt: string;
+}

@@ -10,9 +10,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "scrape:news": "tsx scripts/scrape-news.ts"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
+    "isomorphic-dompurify": "^3.19.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -30,6 +34,7 @@
     "eslint-config-next": "16.3.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

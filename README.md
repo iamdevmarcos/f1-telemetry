@@ -1,9 +1,10 @@
-# F1 Telemetry Explorer
+# F1 Apex
 
-Explore and compare Formula 1 telemetry with [OpenF1](https://openf1.org/).
+Explore Formula 1 telemetry and a curated news briefing.
 
 - **Race replay** — full-race map playback with optional head-to-head driver
 - **Compare lap** — synchronized Speed / Throttle / Brake / Gear charts + sector deltas
+- **News** — blog-style F1 headlines with source attribution
 
 Built by [Marcos Mendes](https://instagram.com/mendes.tsx).
 
@@ -11,7 +12,8 @@ Built by [Marcos Mendes](https://instagram.com/mendes.tsx).
 
 - Next.js (App Router) + TypeScript
 - Route Handlers as the application API
-- OpenF1 (server-side only)
+- OpenF1 (server-side only) for telemetry
+- Static JSON news feed (local scrape script)
 - Recharts
 - Vitest
 
@@ -20,6 +22,7 @@ Built by [Marcos Mendes](https://instagram.com/mendes.tsx).
 ```bash
 cp .env.example .env.local
 npm install
+npm run scrape:news
 npm run dev
 ```
 
@@ -30,6 +33,16 @@ npm run test
 npm run lint
 npm run build
 ```
+
+### Refresh news
+
+News is **not** scraped at runtime. Refresh locally, then commit the JSON:
+
+```bash
+npm run scrape:news
+```
+
+This pulls recent F1 stories from Motorsport.com / Autosport (RaceFans when available), enriches each page, and writes up to 10 articles to `data/news/articles.json`.
 
 ## Deploy on Vercel
 
@@ -87,7 +100,7 @@ If replay fails in production with a timeout, upgrade the plan or use compare-la
 UI → /api/* → application → domain → OpenF1 infrastructure
 ```
 
-Details: [docs/architecture/overview.md](docs/architecture/overview.md)
+Details: [docs/architecture/architecture.md](docs/architecture/architecture.md)
 
 ## API
 
@@ -99,14 +112,19 @@ GET /api/sessions/:sessionId/compare?driverA=&driverB=&lap=
 GET /api/sessions/:sessionId/replay?driverId=&driverBId=
 ```
 
+News pages are App Router routes:
+
+```text
+/news
+/news/:slug
+```
+
 ## Roadmap
 
-1. **Phase 1 (now)** — Telemetry explorer, lap compare, race replay
+1. **Phase 1 (now)** — Telemetry explorer, lap compare, race replay, news
 2. **Phase 2** — Richer track visualization
 3. **Phase 3** — Driving analysis (corners, braking, throttle)
 4. **Phase 4** — Advanced race analytics
-
-Product brief: [INSTRUCTIONS.md](INSTRUCTIONS.md)
 
 ## ADRs
 
