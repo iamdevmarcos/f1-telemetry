@@ -236,9 +236,9 @@ export function RaceReplayPlayer({
     };
   }, [playing, speed, replay.durationSeconds]);
 
-  const mapHeightClass = cinemaMode
-    ? "h-[min(50vh,500px)]"
-    : "h-[min(42vh,420px)]";
+  const mapStageClass = `replay-map-stage min-h-0${
+    cinemaMode ? " replay-map-stage--cinema" : ""
+  }`;
 
   const highlightDriverIds = [
     replay.driver.id,
@@ -247,8 +247,8 @@ export function RaceReplayPlayer({
 
   return (
     <section
-      className={`panel animate-rise space-y-3 p-3 md:space-y-4 md:p-4 ${
-        cinemaMode ? "border-[var(--accent)]" : ""
+      className={`panel replay-panel space-y-3 p-3 md:space-y-4 md:p-4${
+        cinemaMode ? " replay-panel--cinema" : ""
       }`}
     >
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -302,7 +302,7 @@ export function RaceReplayPlayer({
           />
 
           <div className="hidden lg:grid lg:grid-cols-[minmax(220px,248px)_minmax(0,1fr)_minmax(168px,200px)] lg:gap-3">
-            <div className={`${mapHeightClass} min-h-0`}>
+            <div className={mapStageClass}>
               <RaceLeaderboard
                 variant="overlay"
                 fillHeight
@@ -314,12 +314,10 @@ export function RaceReplayPlayer({
             <TrackMap
               trackPath={replay.trackPath}
               cars={cars}
-              className={mapHeightClass}
+              className={mapStageClass}
             />
 
-            <div
-              className={`${mapHeightClass} min-h-0 overflow-hidden`}
-            >
+            <div className={`${mapStageClass} overflow-hidden`}>
               <RaceLiveTiming
                 variant="overlay"
                 fillHeight
@@ -337,7 +335,7 @@ export function RaceReplayPlayer({
             <TrackMap
               trackPath={replay.trackPath}
               cars={cars}
-              className={mapHeightClass}
+              className={mapStageClass}
             />
           </div>
         </div>
@@ -346,7 +344,7 @@ export function RaceReplayPlayer({
           <TrackMap
             trackPath={replay.trackPath}
             cars={cars}
-            className={mapHeightClass}
+            className={mapStageClass}
           />
         </div>
       )}

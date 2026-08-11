@@ -593,14 +593,13 @@ export function TelemetryExplorer() {
       <ModeNav active={mode} />
 
       <div
-        className={
-          replayCinemaActive
-            ? "grid gap-5"
-            : "grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]"
-        }
+        className={`cinema-workspace ${
+          replayCinemaActive ? "cinema-workspace--cinema" : ""
+        } ${mode === "compare" ? "cinema-workspace--compare" : ""}`}
       >
         {mode === "compare" ? (
-          <ExplorerFilters
+          <div className="cinema-sidebar cinema-sidebar--open">
+            <ExplorerFilters
             sessions={sessions}
             drivers={drivers}
             laps={laps}
@@ -627,8 +626,15 @@ export function TelemetryExplorer() {
               void handleCompare();
             }}
           />
-        ) : replayCinemaActive ? null : (
-          <ReplayFilters
+          </div>
+        ) : (
+          <div
+            className={`cinema-sidebar ${
+              replayCinemaActive ? "" : "cinema-sidebar--open"
+            }`}
+            aria-hidden={replayCinemaActive}
+          >
+            <ReplayFilters
             sessions={sessions}
             drivers={drivers}
             sessionId={sessionId}
@@ -651,9 +657,10 @@ export function TelemetryExplorer() {
               void handleLoadReplay();
             }}
           />
+          </div>
         )}
 
-        <div className="space-y-4">
+        <div className="cinema-main min-w-0 space-y-4">
           {visibleError ? (
             <div className="panel animate-rise border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-sm">
               {visibleError.title ? (

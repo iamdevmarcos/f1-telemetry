@@ -316,3 +316,112 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.cinema-workspace {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  transition:
+    gap 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (min-width: 1024px) {
+  .cinema-workspace--compare {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .cinema-workspace:not(.cinema-workspace--compare):not(.cinema-workspace--cinema) {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .cinema-workspace--cinema {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+}
+
+.cinema-sidebar {
+  overflow: hidden;
+  min-width: 0;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition:
+    opacity 280ms ease,
+    max-height 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cinema-sidebar--open {
+  max-height: 1200px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+@media (min-width: 1024px) {
+  .cinema-sidebar {
+    max-height: none;
+    transform: translateX(-10px);
+  }
+
+  .cinema-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .cinema-workspace--compare .cinema-sidebar,
+  .cinema-workspace:not(.cinema-workspace--cinema) .cinema-sidebar--open {
+    max-width: 280px;
+  }
+
+  .cinema-workspace--cinema .cinema-sidebar {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-10px);
+    pointer-events: none;
+  }
+
+  .cinema-workspace--cinema .cinema-sidebar--open {
+    max-width: 0;
+    max-height: none;
+  }
+}
+
+.cinema-main {
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cinema-workspace--cinema .cinema-main {
+  transform: translateX(0);
+}
+
+.replay-map-stage {
+  height: min(42vh, 420px);
+  transition: height 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.replay-map-stage--cinema {
+  height: min(50vh, 500px);
+}
+
+.replay-panel {
+  transition:
+    border-color 280ms ease,
+    box-shadow 280ms ease;
+}
+
+.replay-panel--cinema {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(225, 6, 0, 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinema-workspace,
+  .cinema-sidebar,
+  .cinema-main,
+  .replay-map-stage,
+  .replay-panel {
+    transition: none !important;
+  }
+}
