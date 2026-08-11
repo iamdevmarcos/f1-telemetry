@@ -2,7 +2,11 @@
 
 import { useMemo } from "react";
 
-import type { ReplayFrame, TrackPoint } from "@/lib/domain/types";
+import type {
+  ReplayFrame,
+  TrackPoint,
+  TrackSectorPath,
+} from "@/lib/domain/types";
 
 export interface TrackCar {
   frame: ReplayFrame | null;
@@ -10,6 +14,27 @@ export interface TrackCar {
   colour: string;
   label: string;
 }
+
+const SECTOR_STYLE: Record<
+  1 | 2 | 3,
+  { idle: string; active: string; label: string }
+> = {
+  1: {
+    idle: "rgba(245, 209, 0, 0.28)",
+    active: "rgba(245, 209, 0, 0.9)",
+    label: "#f5d100",
+  },
+  2: {
+    idle: "rgba(67, 176, 42, 0.28)",
+    active: "rgba(67, 176, 42, 0.95)",
+    label: "#43b02a",
+  },
+  3: {
+    idle: "rgba(160, 32, 240, 0.3)",
+    active: "rgba(190, 80, 255, 0.95)",
+    label: "#c060ff",
+  },
+};
 
 function buildViewBox(points: TrackPoint[], padding = 80) {
   if (points.length === 0) {
@@ -55,10 +80,14 @@ function toPath(points: TrackPoint[]): string {
 
 export function TrackMap({
   trackPath,
+  trackSectors,
+  activeSector,
   cars,
   className,
 }: {
   trackPath: TrackPoint[];
+  trackSectors?: TrackSectorPath[];
+  activeSector?: 1 | 2 | 3 | null;
   cars: TrackCar[];
   className?: string;
 }) {
@@ -68,7 +97,16 @@ export function TrackMap({
   );
 
   const trackD = useMemo(() => toPath(trackPath), [trackPath]);
+  const sectorPaths = useMemo(
+    () =>
+      (trackSectors ?? []).map((sector) => ({
+        sector: sector.sector,
+        d: toPath(sector.points),
+      })),
+    [trackSectors],
+  );
   const strokeBase = Math.max(bounds.width, bounds.height);
+  const hasSectors = sectorPaths.some((entry) => entry.d);
 
   return (
     <div
@@ -88,14 +126,35 @@ export function TrackMap({
         className="h-full w-full"
         preserveAspectRatio="xMidYMid meet"
       >
-        <path
-          d={trackD}
-          fill="none"
-          stroke="rgba(255,255,255,0.18)"
-          strokeWidth={strokeBase * 0.012}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {hasSectors ? (
+          sectorPaths.map((entry) => {
+            if (!entry.d) {
+              return null;
+            }
+            const active = activeSector === entry.sector;
+            const style = SECTOR_STYLE[entry.sector];
+            return (
+              <path
+                key={`sector-${entry.sector}`}
+                d={entry.d}
+                fill="none"
+                stroke={active ? style.active : style.idle}
+                strokeWidth={strokeBase * (active ? 0.016 : 0.012)}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            );
+          })
+        ) : (
+          <path
+            d={trackD}
+            fill="none"
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth={strokeBase * 0.012}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
         {cars.map((car, carIndex) => {
           const carPoint = car.frame
             ? flipY({ x: car.frame.x, y: car.frame.y })
@@ -145,6 +204,28 @@ export function TrackMap({
           );
         })}
       </svg>
+
+      {hasSectors ? (
+        <div className="absolute right-3 top-3 flex items-center gap-2">
+          {([1, 2, 3] as const).map((sector) => {
+            const active = activeSector === sector;
+            return (
+              <span
+                key={`sector-legend-${sector}`}
+                className="border border-[var(--border)] bg-black/60 px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.14em]"
+                style={{
+                  color: active ? "#fff" : "var(--muted)",
+                  boxShadow: active
+                    ? `inset 0 -2px 0 ${SECTOR_STYLE[sector].label}`
+                    : undefined,
+                }}
+              >
+                S{sector}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
 
       {cars.length > 1 ? (
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-2">

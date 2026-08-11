@@ -10,6 +10,7 @@ import {
 import { TrackMap } from "@/components/TrackMap";
 import { snapshotRaceDashboard } from "@/lib/domain/dashboard";
 import { buildCarTrailSegments } from "@/lib/domain/replay-trail";
+import { resolveActiveSector } from "@/lib/domain/track-sectors";
 import type {
   Driver,
   Lap,
@@ -162,6 +163,10 @@ export function RaceReplayPlayer({
 
   const currentLapA = findLap(replay.laps, primary.frame?.lapNumber);
   const currentLapB = findLap(replay.lapsB, secondary.frame?.lapNumber);
+  const activeSector = resolveActiveSector({
+    lap: currentLapA,
+    frameTimestamp: primary.frame?.timestamp,
+  });
   const lapDelta =
     primary.frame && secondary.frame
       ? primary.frame.lapNumber - secondary.frame.lapNumber
@@ -313,6 +318,8 @@ export function RaceReplayPlayer({
 
             <TrackMap
               trackPath={replay.trackPath}
+              trackSectors={replay.trackSectors}
+              activeSector={activeSector}
               cars={cars}
               className={mapStageClass}
             />
@@ -334,6 +341,8 @@ export function RaceReplayPlayer({
           <div className="lg:hidden">
             <TrackMap
               trackPath={replay.trackPath}
+              trackSectors={replay.trackSectors}
+              activeSector={activeSector}
               cars={cars}
               className={mapStageClass}
             />
@@ -343,6 +352,8 @@ export function RaceReplayPlayer({
         <div className="relative">
           <TrackMap
             trackPath={replay.trackPath}
+            trackSectors={replay.trackSectors}
+            activeSector={activeSector}
             cars={cars}
             className={mapStageClass}
           />

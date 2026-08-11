@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain/replay";
 import { resolveLapWindow } from "@/lib/domain/compare";
 import { isRaceAvailable } from "@/lib/domain/session";
+import { buildTrackSectorPaths } from "@/lib/domain/track-sectors";
 import type {
   Driver,
   Lap,
@@ -279,15 +280,23 @@ export async function getRaceReplay(input: {
     drivers: rawDrivers.map(mapDriver),
   });
 
+  const trackPath = buildTrackPath(
+    outlineLocations.map((sample) => ({ x: sample.x, y: sample.y })),
+  );
+  const trackSectors =
+    buildTrackSectorPaths({
+      outlineLocations,
+      lap: outlineLap,
+    }) ?? undefined;
+
   return {
     session,
     driver,
     driverB: driverB ?? undefined,
     laps: lapsA,
     lapsB: lapsB ?? undefined,
-    trackPath: buildTrackPath(
-      outlineLocations.map((sample) => ({ x: sample.x, y: sample.y })),
-    ),
+    trackPath,
+    trackSectors,
     frames,
     framesB,
     durationSeconds,

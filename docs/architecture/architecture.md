@@ -128,6 +128,7 @@ f1-telemetry/
 │   │   ├── replay.ts
 │   │   ├── replay-trail.ts         # Segmentos de trail no mapa (anti-corda)
 │   │   ├── dashboard.ts            # Race dashboard: grid, setores, pits, snapshot
+│   │   ├── track-sectors.ts        # Split do traçado em S1/S2/S3
 │   │   ├── laps.ts                 # Interseção A∩B de voltas comparáveis
 │   │   ├── share-links.ts          # Build/parse de deep links
 │   │   ├── telemetry-series.ts
@@ -347,6 +348,8 @@ sequenceDiagram
 **Renderização do mapa (`TrackMap` + `replay-trail`):**
 
 - `viewBox` calculado **apenas** a partir do contorno da pista (`trackPath`) — evita distorção ao scrubbar
+- Traçado dividido em S1/S2/S3 (`buildTrackSectorPaths`) a partir dos tempos de setor da outline lap; fallback em terços iguais
+- Setor ativo destacado via `resolveActiveSector` (tempo decorrido da volta atual)
 - Trail do carro = segmentos curtos (`buildCarTrailSegments`): mesma volta, ~10s de histórico
 - Quebra de segmento em saltos espaciais/temporais grandes (anti-corda ao pular no scrubber)
 

@@ -80,6 +80,11 @@ export interface TrackPoint {
   y: number;
 }
 
+export interface TrackSectorPath {
+  sector: 1 | 2 | 3;
+  points: TrackPoint[];
+}
+
 export interface ReplayFrame {
   timestamp: string;
   relativeTimeSeconds: number;
@@ -206,6 +211,7 @@ export interface RaceReplay {
   laps: Lap[];
   lapsB?: Lap[];
   trackPath: TrackPoint[];
+  trackSectors?: TrackSectorPath[];
   frames: ReplayFrame[];
   framesB?: ReplayFrame[];
   durationSeconds: number;
