@@ -10,7 +10,7 @@ Para decisões pontuais, consulte também os [ADRs](../adr/).
 
 O **F1 Apex** é uma aplicação web que consome dados públicos da [OpenF1](https://openf1.org/) e um feed local de notícias para:
 
-- **Race replay** — reproduzir uma corrida inteira no mapa do circuito (solo ou battle)
+- **Race replay** — reproduzir uma corrida inteira no mapa do circuito (solo ou battle), com timing board estilo broadcast (grid, setores, pits, clima)
 - **Compare lap** — comparar telemetria de dois pilotos em uma volta específica
 - **News** — briefing de headlines F1 com atribuição de fonte (conteúdo estático em JSON)
 
@@ -19,8 +19,8 @@ A arquitetura segue um princípio simples: **um único app Next.js** hospedado n
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        Browser (React)                       │
-│   TelemetryExplorer · RaceReplayPlayer · TelemetryCharts    │
-│   ModeNav · ShareButtons · NewsArticleView                   │
+│   TelemetryExplorer · RaceReplayPlayer · RaceDashboard · TrackMap │
+│   TelemetryCharts · ModeNav · ShareButtons · NewsArticleView      │
 └────────────────────────────┬────────────────────────────────┘
                              │ fetch("/api/*")  same-origin
                              ▼
@@ -107,6 +107,7 @@ f1-telemetry/
 │   ├── ReplayFilters.tsx
 │   ├── ExplorerFilters.tsx
 │   ├── RaceReplayPlayer.tsx
+│   ├── RaceDashboard.tsx           # Header, leaderboard, live timing (broadcast)
 │   ├── TrackMap.tsx
 │   ├── TelemetryCharts.tsx
 │   ├── ComparisonPanel.tsx         # Timing + driving profile
@@ -126,6 +127,7 @@ f1-telemetry/
 │   │   ├── compare.ts
 │   │   ├── replay.ts
 │   │   ├── replay-trail.ts         # Segmentos de trail no mapa (anti-corda)
+│   │   ├── dashboard.ts            # Race dashboard: grid, setores, pits, snapshot
 │   │   ├── laps.ts                 # Interseção A∩B de voltas comparáveis
 │   │   ├── share-links.ts          # Build/parse de deep links
 │   │   ├── telemetry-series.ts
@@ -177,7 +179,10 @@ Tipos centrais em `lib/domain/types.ts`:
 | `TelemetrySample` | Amostra normalizada: speed, throttle, brake, gear, tempo relativo |
 | `LapDrivingMetrics` | Agregados de telemetria: max/avg speed, throttle, % full throttle, % braking |
 | `DriverComparison` | Dois pilotos + deltas + telemetria A/B + `metricsA` / `metricsB` |
-| `RaceReplay` | Frames de playback, track path SVG, duração, voltas |
+| `RaceReplay` | Frames de playback, track path SVG, duração, voltas, `dashboard?` |
+| `RaceDashboard` | Série temporal de positions, intervals, stints, pits, weather, session laps |
+| `RaceDashboardSnapshot` | Estado do dashboard em um instante do replay (leaderboard + focused drivers) |
+| `LeaderboardRow` | Linha do grid: pos, tempos, tyre, gap, setores coloridos, pits |
 | `NewsArticle` | Artigo: slug, título, fonte, data, excerpt, corpo sanitizado |
 
 O domínio **não espelha** o JSON da OpenF1. Os mappers traduzem formatos externos para o que a aplicação precisa.
@@ -309,6 +314,9 @@ sequenceDiagram
   TE->>API: driverId, driverBId?
   API->>APP: getRaceReplay()
   APP->>OF1: session, drivers, laps
+  par Dashboard (Promise.allSettled)
+    APP->>OF1: positions, intervals, stints, weather, session laps, pits
+  end
   loop Chunks de 10 voltas (sequencial)
     APP->>OF1: location (janela)
     APP->>OF1: car_data (janela)
@@ -316,12 +324,20 @@ sequenceDiagram
   opt Driver B
     APP->>APP: Repete telemetria piloto B
   end
-  APP->>APP: buildReplayFrames + trackPath
-  APP-->>TE: RaceReplay
-  TE->>TE: RaceReplayPlayer + TrackMap
+  APP->>APP: buildReplayFrames + trackPath + buildRaceDashboard
+  APP-->>TE: RaceReplay (+ dashboard?)
+  TE->>TE: RaceReplayPlayer + snapshotRaceDashboard + TrackMap
 ```
 
-**Estratégia de fetch:**
+**Race dashboard:**
+
+- Carregado em paralelo com a telemetria (`loadRaceDashboard`); falha parcial não bloqueia o replay
+- `buildRaceDashboard` (domain) normaliza positions, intervals, stints, pits e weather
+- No client, `snapshotRaceDashboard` projeta o instante atual do scrubber → leaderboard + live timing dos pilotos focados
+- UI em grid 3 colunas (`lg+`): standings | mapa | timing, mesma altura; standings com scroll interno
+- Cinema mode (`T`) esconde o painel de setup e expande o replay
+
+**Estratégia de fetch (telemetria):**
 
 - Voltas divididas em chunks de **10**
 - Requests **sequenciais** (location → car_data por chunk)
@@ -350,6 +366,11 @@ Toda comunicação externa passa por `lib/infrastructure/openf1/client.ts`.
 | `GET /laps` | Voltas (com filtros) |
 | `GET /car_data` | Speed, throttle, brake, gear, rpm |
 | `GET /location` | Coordenadas x/y no circuito (replay) |
+| `GET /position` | Posição na corrida ao longo do tempo |
+| `GET /intervals` | Gap para o líder e intervalo entre carros |
+| `GET /stints` | Composto e idade do pneu |
+| `GET /pit` | Pit stops (contagem, última parada) |
+| `GET /weather` | Temperatura pista/ar, chuva |
 
 Ver [ADR-002 — OpenF1](../adr/ADR-002-openf1.md).
 
@@ -412,7 +433,7 @@ Refresh: rodar scrape localmente e commitar o JSON atualizado.
 
 | Modo | Componentes | Interação |
 |------|-------------|-----------|
-| **Race replay** | `ReplayFilters`, `RaceReplayPlayer`, `TrackMap`, `ShareButtons` | Play/pause, scrubber, 1x–16x, HUD, share link |
+| **Race replay** | `ReplayFilters`, `RaceReplayPlayer`, `RaceDashboard`, `TrackMap`, `ShareButtons` | Play/pause, scrubber, 1x–16x, HUD, grid broadcast, cinema mode, share link |
 | **Compare lap** | `ExplorerFilters`, `ComparisonPanel`, `TelemetryCharts`, `ShareButtons` | Charts sincronizados; driving profile; laps A∩B |
 | **News** | `app/news/*`, `NewsCard`, `NewsArticleView` | Lista + artigo; share/copy por slug |
 
@@ -474,6 +495,7 @@ Config em `vercel.json` (build/install commands).
 **Vitest** cobre lógica de domínio e mappers:
 
 - `lib/domain/*.test.ts` — deltas, lap window, replay frames, série sincronizada
+- `lib/domain/dashboard.test.ts` — grid, setores, pits, snapshot do dashboard
 - `lib/domain/laps.test.ts` — interseção A∩B
 - `lib/domain/share-links.test.ts` — deep links
 - `lib/domain/replay-trail.test.ts` — segmentos de trail
@@ -498,10 +520,11 @@ A análise atual é **determinística** (sem ML):
 | Camada | O que calcula |
 |--------|----------------|
 | Timing | Deltas de volta e setor (A − B) |
+| Race dashboard | Leaderboard por instante, setores purple/green/yellow, pits, fastest lap, weather |
 | Driving profile | Max/avg speed, avg throttle, % full throttle, % braking por piloto |
 | Charts | Telemetria reamostrada em grid comum para comparação visual |
 
-Implementado em `lib/domain/compare.ts`, `lib/domain/analysis/lap-metrics.ts` e exibido em `ComparisonPanel`.
+Implementado em `lib/domain/compare.ts`, `lib/domain/dashboard.ts`, `lib/domain/analysis/lap-metrics.ts` e exibido em `ComparisonPanel` / `RaceDashboard`.
 
 Ver [ADR-005 — Analysis engine](../adr/ADR-005-analysis-engine.md).
 
@@ -529,4 +552,4 @@ Evolução natural (fora do escopo atual):
 
 ## 17. Resumo
 
-> **Browser** pede dados ao **próprio Next.js** via `/api/*`. Route Handlers delegam para **application**, que aplica **regras de domínio** e busca tudo na **OpenF1** de forma controlada. News vem de JSON local. Deep links permitem compartilhar replay e compare; laps comparáveis respeitam interseção A∩B; driving profile enriquece compare; trail no mapa evita cordas ao scrubbar. O resultado volta como JSON tipado e a UI renderiza replay, comparação ou news — sem expor a API externa ao client.
+> **Browser** pede dados ao **próprio Next.js** via `/api/*`. Route Handlers delegam para **application**, que aplica **regras de domínio** e busca tudo na **OpenF1** de forma controlada. News vem de JSON local. Deep links permitem compartilhar replay e compare; laps comparáveis respeitam interseção A∩B; driving profile enriquece compare; race replay inclui timing board broadcast (positions, intervals, stints, pits, weather); trail no mapa evita cordas ao scrubbar. O resultado volta como JSON tipado e a UI renderiza replay, comparação ou news — sem expor a API externa ao client.

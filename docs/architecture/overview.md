@@ -4,7 +4,7 @@ Guia completo: **[architecture.md](./architecture.md)**
 
 ## Produto
 
-**F1 Apex** — race replay, compare lap e news briefing.
+**F1 Apex** — race replay (com timing board broadcast), compare lap e news briefing.
 
 ## Diagrama resumido
 
