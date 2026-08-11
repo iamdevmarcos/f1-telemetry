@@ -1,4 +1,4 @@
-# F1 Telemetry Explorer — Architecture Guide
+# F1 Apex — Architecture Guide
 
 Documento de referência da arquitetura do projeto, do nível macro até os fluxos de dados e decisões operacionais.
 
@@ -8,17 +8,19 @@ Para decisões pontuais, consulte também os [ADRs](../adr/).
 
 ## 1. High level
 
-O **F1 Telemetry Explorer** é uma aplicação web que consome dados públicos da [OpenF1](https://openf1.org/) para:
+O **F1 Apex** é uma aplicação web que consome dados públicos da [OpenF1](https://openf1.org/) e um feed local de notícias para:
 
-- **Race replay** — reproduzir uma corrida inteira no mapa do circuito
+- **Race replay** — reproduzir uma corrida inteira no mapa do circuito (solo ou battle)
 - **Compare lap** — comparar telemetria de dois pilotos em uma volta específica
+- **News** — briefing de headlines F1 com atribuição de fonte (conteúdo estático em JSON)
 
-A arquitetura segue um princípio simples: **um único app Next.js** hospedado na Vercel. Não há backend separado, banco de dados ou fila no MVP.
+A arquitetura segue um princípio simples: **um único app Next.js** hospedado na Vercel. Não há backend separado, banco de dados ou fila no MVP. News é servida de `data/news/articles.json` (gerado por script local).
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        Browser (React)                       │
 │   TelemetryExplorer · RaceReplayPlayer · TelemetryCharts    │
+│   ModeNav · ShareButtons · NewsArticleView                   │
 └────────────────────────────┬────────────────────────────────┘
                              │ fetch("/api/*")  same-origin
                              ▼
@@ -26,6 +28,7 @@ A arquitetura segue um princípio simples: **um único app Next.js** hospedado n
 │              Next.js (App Router + Route Handlers)           │
 │                                                              │
 │   app/api/*  →  lib/application  →  lib/domain               │
+│   app/news/* →  lib/application/news (JSON local)            │
 │                      ↓                                       │
 │           lib/infrastructure/openf1                          │
 └────────────────────────────┬────────────────────────────────┘
@@ -60,15 +63,15 @@ Route Handlers          app/api/**/route.ts
    │                    Validação (Zod), HTTP, maxDuration
    ▼
 Application             lib/application/
-   │                    Casos de uso: listSessions, compareDrivers, getRaceReplay
+   │                    Casos de uso: listSessions, compareDrivers, getRaceReplay, listNewsArticles
    ▼
 Domain                  lib/domain/
-   │                    Tipos, regras puras, normalização, cálculos
+   │                    Tipos, regras puras, normalização, cálculos, share links
    ▼
-Infrastructure          lib/infrastructure/openf1/
+Infrastructure          lib/infrastructure/openf1/  (+ news/store para JSON)
    │                    HTTP client, tipos OpenF1, mappers
    ▼
-OpenF1 API
+OpenF1 API              data/news/articles.json (local)
 ```
 
 ### Regra de dependência
@@ -76,7 +79,7 @@ OpenF1 API
 - **Domain** não importa Next.js, React nem OpenF1
 - **Application** orquestra domain + infrastructure
 - **Route Handlers** são finos: parse → chama application → JSON
-- **Components** só conhecem tipos de domínio e `/api/*`
+- **Components** só conhecem tipos de domínio e `/api/*` (News lê JSON via application em RSC)
 
 ---
 
@@ -87,6 +90,9 @@ f1-telemetry/
 ├── app/
 │   ├── page.tsx                    # Home → TelemetryExplorer
 │   ├── layout.tsx                  # Fonts, metadata, shell global
+│   ├── news/
+│   │   ├── page.tsx                # Lista de artigos
+│   │   └── [slug]/page.tsx         # Artigo individual
 │   └── api/sessions/
 │       ├── route.ts                # GET /api/sessions
 │       └── [sessionId]/
@@ -96,41 +102,65 @@ f1-telemetry/
 │           └── replay/route.ts
 │
 ├── components/                     # UI React (client components)
-│   ├── TelemetryExplorer.tsx       # Orquestrador de estado + fetch
+│   ├── TelemetryExplorer.tsx       # Orquestrador de estado + fetch + deep links
+│   ├── ModeNav.tsx                 # Replay | Compare | News
 │   ├── ReplayFilters.tsx
 │   ├── ExplorerFilters.tsx
 │   ├── RaceReplayPlayer.tsx
 │   ├── TrackMap.tsx
 │   ├── TelemetryCharts.tsx
-│   └── ComparisonPanel.tsx
+│   ├── ComparisonPanel.tsx         # Timing + driving profile
+│   ├── ShareButtons.tsx            # Share / Copy link (reutilizado)
+│   ├── NewsShareButtons.tsx        # Re-export de ShareButtons
+│   ├── NewsCard.tsx
+│   ├── NewsArticleView.tsx
+│   └── AppShell.tsx
+│
+├── data/news/
+│   └── articles.json               # Feed estático (npm run scrape:news)
 │
 ├── lib/
-│   ├── domain/                     # Regras e modelos
+│   ├── domain/
 │   │   ├── types.ts
 │   │   ├── session.ts
 │   │   ├── compare.ts
 │   │   ├── replay.ts
-│   │   └── telemetry-series.ts
+│   │   ├── replay-trail.ts         # Segmentos de trail no mapa (anti-corda)
+│   │   ├── laps.ts                 # Interseção A∩B de voltas comparáveis
+│   │   ├── share-links.ts          # Build/parse de deep links
+│   │   ├── telemetry-series.ts
+│   │   ├── news.ts
+│   │   └── analysis/
+│   │       └── lap-metrics.ts      # Driving profile (speed, throttle, brake)
 │   │
-│   ├── application/                # Casos de uso
-│   │   ├── sessions.ts
+│   ├── application/
+│   │   ├── sessions.ts             # listSessions, listLaps, listComparableLaps
 │   │   ├── compare.ts
-│   │   └── replay.ts
+│   │   ├── replay.ts
+│   │   └── news.ts
 │   │
-│   ├── infrastructure/openf1/      # Integração externa
-│   │   ├── client.ts
-│   │   ├── types.ts
-│   │   └── mappers.ts
+│   ├── infrastructure/
+│   │   ├── openf1/
+│   │   │   ├── client.ts
+│   │   │   ├── types.ts
+│   │   │   └── mappers.ts
+│   │   └── news/
+│   │       ├── store.ts
+│   │       └── sanitize.ts
 │   │
-│   ├── api/                        # Helpers HTTP
+│   ├── api/
 │   │   ├── errors.ts
 │   │   └── openf1-messages.ts
 │   │
-│   └── format.ts                   # Formatação de labels na UI
+│   ├── format.ts
+│   └── format-news.ts
+│
+├── scripts/
+│   └── scrape-news.ts              # Gera data/news/articles.json
 │
 └── docs/
-    ├── architecture/               # Este documento
-    └── adr/                        # Architecture Decision Records
+    ├── architecture/
+    └── adr/
 ```
 
 ---
@@ -145,10 +175,12 @@ Tipos centrais em `lib/domain/types.ts`:
 | `Driver` | Piloto: número, acronym, equipe, cor |
 | `Lap` | Volta: tempo, setores, `dateStart` |
 | `TelemetrySample` | Amostra normalizada: speed, throttle, brake, gear, tempo relativo |
-| `DriverComparison` | Dois pilotos + deltas de volta/setor + telemetria A/B |
+| `LapDrivingMetrics` | Agregados de telemetria: max/avg speed, throttle, % full throttle, % braking |
+| `DriverComparison` | Dois pilotos + deltas + telemetria A/B + `metricsA` / `metricsB` |
 | `RaceReplay` | Frames de playback, track path SVG, duração, voltas |
+| `NewsArticle` | Artigo: slug, título, fonte, data, excerpt, corpo sanitizado |
 
-O domínio **não espelha** o JSON da OpenF1. Os [mappers](../infrastructure) traduzem formatos externos para o que a aplicação precisa.
+O domínio **não espelha** o JSON da OpenF1. Os mappers traduzem formatos externos para o que a aplicação precisa.
 
 Ver [ADR-003 — Telemetry normalization](../adr/ADR-003-telemetry-normalization.md).
 
@@ -156,15 +188,17 @@ Ver [ADR-003 — Telemetry normalization](../adr/ADR-003-telemetry-normalization
 
 ## 5. API interna
 
-O frontend nunca chama `api.openf1.org`. Todos os endpoints são Route Handlers Next.js:
+O frontend nunca chama `api.openf1.org`. Todos os endpoints de telemetria são Route Handlers Next.js:
 
 | Método | Rota | Caso de uso |
 |--------|------|-------------|
 | `GET` | `/api/sessions` | Listar corridas (Race, 2023+) |
 | `GET` | `/api/sessions/:sessionId/drivers` | Pilotos da sessão |
-| `GET` | `/api/sessions/:sessionId/laps?driverId=` | Voltas de um piloto |
+| `GET` | `/api/sessions/:sessionId/laps?driverId=&driverBId?` | Voltas do piloto A; com `driverBId`, retorna também `comparableLapNumbers` (interseção A∩B) |
 | `GET` | `/api/sessions/:sessionId/compare?driverA=&driverB=&lap=` | Comparar uma volta |
-| `GET` | `/api/sessions/:sessionId/replay?driverId=&driverBId=` | Replay da corrida |
+| `GET` | `/api/sessions/:sessionId/replay?driverId=&driverBId?` | Replay da corrida |
+
+**News** não usa Route Handler: páginas em `app/news/*` leem `data/news/articles.json` via `lib/application/news.ts`.
 
 Rotas pesadas (`compare`, `replay`) declaram `export const maxDuration = 60` para Vercel Pro.
 
@@ -199,6 +233,22 @@ sequenceDiagram
 - Corridas canceladas removidas
 - Corridas futuras marcadas com `isUpcoming` (disabled na UI)
 
+### Deep links (share)
+
+`TelemetryExplorer` lê query params na carga inicial e **auto-carrega** replay ou compare:
+
+| Modo | Query params | Exemplo |
+|------|--------------|---------|
+| Replay | `session`, `driver`, `driverB?` | `/?session=11342&driver=44&driverB=16` |
+| Compare | `mode=compare`, `session`, `driverA`, `driverB`, `lap` | `/?mode=compare&session=11342&driverA=44&driverB=16&lap=17` |
+
+- `session` = OpenF1 `session_key` (ID numérico da corrida)
+- `driver` / `driverA` / `driverB` = `driver_number` (número do piloto)
+
+Após carregar dados com sucesso, a URL é sincronizada via `history.replaceState`. Botões **Share** / **Copy link** (`ShareButtons`) aparecem só quando replay ou compare está visível.
+
+Lógica em `lib/domain/share-links.ts`; UI reutiliza o mesmo componente da News.
+
 ---
 
 ## 7. Fluxo: Compare lap
@@ -224,7 +274,7 @@ sequenceDiagram
     APP->>OF1: car_data (janela piloto B)
   end
   APP->>DOM: mapTelemetrySamples + downsample
-  APP->>DOM: buildDriverComparison (deltas)
+  APP->>DOM: buildDriverComparison (deltas + lap-metrics)
   APP-->>API: CompareResult
   API-->>TE: JSON
   TE->>TE: ComparisonPanel + TelemetryCharts
@@ -232,12 +282,16 @@ sequenceDiagram
 
 **Passos principais:**
 
-1. Busca metadados da volta (tempo, setores, `date_start`)
-2. Calcula janela temporal: `date_start` → `date_start + lap_duration`
-3. Busca `car_data` nessa janela (~3.7 Hz → ~300–400 pontos/volta)
-4. Converte timestamps UTC para **tempo relativo** (0s = início da volta)
-5. Calcula deltas de volta e setores (A − B)
-6. UI reamostra ambos os pilotos num **grid de tempo comum** antes de plotar (Recharts)
+1. UI exige **Driver B** antes de habilitar o select de lap
+2. `listComparableLaps` retorna voltas do piloto A com `comparableLapNumbers` = interseção A∩B (voltas com tempo válido em ambos)
+3. Voltas não compartilhadas aparecem **disabled** no select
+4. Busca metadados da volta (tempo, setores, `date_start`)
+5. Calcula janela temporal: `date_start` → `date_start + lap_duration`
+6. Busca `car_data` nessa janela (~3.7 Hz → ~300–400 pontos/volta)
+7. Converte timestamps UTC para **tempo relativo** (0s = início da volta)
+8. Calcula deltas de volta e setores (A − B)
+9. Calcula **driving profile** (`computeLapDrivingMetrics`): max/avg speed, avg throttle, % full throttle, % braking
+10. UI reamostra ambos os pilotos num **grid de tempo comum** antes de plotar (Recharts)
 
 ---
 
@@ -274,7 +328,11 @@ sequenceDiagram
 - Driver B carregado **depois** do A (battle replay)
 - Fila global no client OpenF1 com gap de 200ms + retry com backoff
 
-Isso reduz erros **429 Too Many Requests** da API gratuita.
+**Renderização do mapa (`TrackMap` + `replay-trail`):**
+
+- `viewBox` calculado **apenas** a partir do contorno da pista (`trackPath`) — evita distorção ao scrubbar
+- Trail do carro = segmentos curtos (`buildCarTrailSegments`): mesma volta, ~10s de histórico
+- Quebra de segmento em saltos espaciais/temporais grandes (anti-corda ao pular no scrubber)
 
 ---
 
@@ -318,23 +376,47 @@ Se ausente, o client usa o default público.
 
 ---
 
-## 10. Frontend
+## 10. News
+
+Feed estático — **sem runtime scrape** em produção.
+
+```text
+npm run scrape:news  →  scripts/scrape-news.ts  →  data/news/articles.json
+                                                              ↓
+app/news/page.tsx  →  lib/application/news.ts  →  lib/infrastructure/news/store.ts
+```
+
+- Fontes: Motorsport.com, Autosport (RaceFans quando disponível)
+- Corpo HTML sanitizado em `lib/infrastructure/news/sanitize.ts`
+- Slugs em `lib/domain/news.ts` (`buildNewsSlug`)
+- Share por artigo via `NewsShareButtons` → `/news/[slug]`
+
+Refresh: rodar scrape localmente e commitar o JSON atualizado.
+
+---
+
+## 11. Frontend
 
 ### Orquestração
 
-`TelemetryExplorer` é o componente raiz. Mantém:
+`TelemetryExplorer` é o componente raiz da home. Mantém:
 
-- Modo atual (`replay` | `compare`)
+- Modo atual (`replay` | `compare`) via `?mode=compare` ou default replay
 - Estado de filtros (sessão, pilotos, volta)
 - Loading / error states
 - Fetch para `/api/*`
+- Bootstrap a partir de **deep links** na URL
+- Sincronização da URL após load bem-sucedido
 
 ### Modos
 
 | Modo | Componentes | Interação |
 |------|-------------|-----------|
-| **Race replay** | `ReplayFilters`, `RaceReplayPlayer`, `TrackMap` | Play/pause, scrubber, 1x–16x, HUD |
-| **Compare lap** | `ExplorerFilters`, `ComparisonPanel`, `TelemetryCharts` | Charts sincronizados por hover |
+| **Race replay** | `ReplayFilters`, `RaceReplayPlayer`, `TrackMap`, `ShareButtons` | Play/pause, scrubber, 1x–16x, HUD, share link |
+| **Compare lap** | `ExplorerFilters`, `ComparisonPanel`, `TelemetryCharts`, `ShareButtons` | Charts sincronizados; driving profile; laps A∩B |
+| **News** | `app/news/*`, `NewsCard`, `NewsArticleView` | Lista + artigo; share/copy por slug |
+
+Navegação entre modos: `ModeNav` (links para `/`, `/?mode=compare`, `/news`).
 
 ### Visualização
 
@@ -346,7 +428,7 @@ Ver [ADR-004 — Visual and charts](../adr/ADR-004-visual-and-charts.md).
 
 ---
 
-## 11. Tratamento de erros
+## 12. Tratamento de erros
 
 ```text
 OpenF1Error (server)
@@ -362,12 +444,14 @@ Casos comuns:
 |----------|----------|
 | Rate limit (429) | "Rate limit reached" + explicação da API gratuita |
 | OpenF1 indisponível | "OpenF1 unavailable" + pedir retry |
+| Volta não completada por ambos | 400 — lap not completed by both drivers |
 | Volta/corrida inválida | 400/404 com mensagem específica |
 | Corrida futura | 400 — race has not happened yet |
+| Deep link inválido | Mensagem na UI (sessão/piloto/lap não encontrados) |
 
 ---
 
-## 12. Deploy
+## 13. Deploy
 
 ```text
 GitHub (main)  →  Vercel  →  npm run build  →  Serverless Functions
@@ -379,16 +463,21 @@ GitHub (main)  →  Vercel  →  npm run build  →  Serverless Functions
 | Env | `OPENF1_BASE_URL` opcional |
 | Timeout Hobby | 10s — replay pode falhar |
 | Timeout Pro | 60s — recomendado para race replay |
+| News | `data/news/articles.json` versionado no repo |
 
 Config em `vercel.json` (build/install commands).
 
 ---
 
-## 13. Testes
+## 14. Testes
 
 **Vitest** cobre lógica de domínio e mappers:
 
 - `lib/domain/*.test.ts` — deltas, lap window, replay frames, série sincronizada
+- `lib/domain/laps.test.ts` — interseção A∩B
+- `lib/domain/share-links.test.ts` — deep links
+- `lib/domain/replay-trail.test.ts` — segmentos de trail
+- `lib/domain/analysis/lap-metrics.test.ts` — driving profile
 - `lib/infrastructure/openf1/mappers.test.ts` — mapeamento OpenF1 → domínio
 - `lib/format.test.ts` — labels de sessão
 
@@ -402,21 +491,29 @@ Testes de integração com OpenF1 real não rodam no CI (dependência externa + 
 
 ---
 
-## 14. Análise e roadmap
+## 15. Análise
 
-No MVP, a "análise" é **determinística**: deltas de volta e setor (A − B). Sem ML ou heurísticas de curva.
+A análise atual é **determinística** (sem ML):
+
+| Camada | O que calcula |
+|--------|----------------|
+| Timing | Deltas de volta e setor (A − B) |
+| Driving profile | Max/avg speed, avg throttle, % full throttle, % braking por piloto |
+| Charts | Telemetria reamostrada em grid comum para comparação visual |
+
+Implementado em `lib/domain/compare.ts`, `lib/domain/analysis/lap-metrics.ts` e exibido em `ComparisonPanel`.
 
 Ver [ADR-005 — Analysis engine](../adr/ADR-005-analysis-engine.md).
 
-Evolução natural (fora do MVP):
+Evolução natural (fora do escopo atual):
 
+- Insights por setor/curva, braking points automáticos
 - Postgres para cache durável entre instâncias serverless
 - Backend dedicado se compare/replay exigir pré-processamento
-- Detecção de curvas, braking points, insights automáticos (Phase 3 da visão original)
 
 ---
 
-## 15. Referências rápidas
+## 16. Referências rápidas
 
 | Documento | Conteúdo |
 |-----------|----------|
@@ -430,6 +527,6 @@ Evolução natural (fora do MVP):
 
 ---
 
-## 16. Resumo
+## 17. Resumo
 
-> **Browser** pede dados ao **próprio Next.js** via `/api/*`. Route Handlers delegam para **application**, que aplica **regras de domínio** e busca tudo na **OpenF1** de forma controlada. O resultado volta como JSON tipado e a UI renderiza replay no mapa ou comparação de volta — sem expor a API externa ao client.
+> **Browser** pede dados ao **próprio Next.js** via `/api/*`. Route Handlers delegam para **application**, que aplica **regras de domínio** e busca tudo na **OpenF1** de forma controlada. News vem de JSON local. Deep links permitem compartilhar replay e compare; laps comparáveis respeitam interseção A∩B; driving profile enriquece compare; trail no mapa evita cordas ao scrubbar. O resultado volta como JSON tipado e a UI renderiza replay, comparação ou news — sem expor a API externa ao client.
