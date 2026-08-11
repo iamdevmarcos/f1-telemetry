@@ -23,7 +23,7 @@ import type {
   RaceReplay,
   Session,
 } from "@/lib/domain/types";
-import { formatSessionRaceLabel } from "@/lib/format";
+import { formatSessionRaceLabel, getRacePlaceName } from "@/lib/format";
 
 type ExplorerMode = "compare" | "replay";
 
@@ -107,11 +107,13 @@ export function TelemetryExplorer() {
   const [loadingReplay, setLoadingReplay] = useState(false);
   const [error, setError] = useState<ExplorerError | null>(null);
   const [errorMode, setErrorMode] = useState(mode);
+  const [cinemaMode, setCinemaMode] = useState(false);
   const didBootstrapRef = useRef(false);
 
   if (mode !== errorMode) {
     setErrorMode(mode);
     setError(null);
+    setCinemaMode(false);
   }
 
   useEffect(() => {
@@ -150,6 +152,16 @@ export function TelemetryExplorer() {
   const contextLabel = selectedSession
     ? `${selectedSession.year} · ${formatSessionRaceLabel(selectedSession, sessions)}`
     : undefined;
+
+  const replayRacePlaceLabel = useMemo(() => {
+    if (!selectedSession) {
+      return undefined;
+    }
+    const sessionsInYear = sessions.filter(
+      (session) => session.year === selectedSession.year,
+    );
+    return getRacePlaceName(selectedSession, sessionsInYear);
+  }, [selectedSession, sessions]);
 
   const loadDriversForSession = useCallback(async (nextSessionId: string) => {
     setLoadingDrivers(true);
@@ -326,6 +338,7 @@ export function TelemetryExplorer() {
     setLoadingReplay(true);
     setError(null);
     setReplay(null);
+    setCinemaMode(false);
 
     try {
       const params = new URLSearchParams({ driverId: replayDriverId });
@@ -532,6 +545,45 @@ export function TelemetryExplorer() {
     : "F1 Apex replay";
 
   const visibleError = errorMode === mode ? error : null;
+  const replayCinemaActive = mode === "replay" && cinemaMode && Boolean(replay);
+
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+      const tag = target.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      );
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "t" && event.key !== "T") {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      if (mode !== "replay" || !replay) {
+        return;
+      }
+
+      event.preventDefault();
+      setCinemaMode((current) => !current);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mode, replay]);
 
   return (
     <AppShell
@@ -540,7 +592,13 @@ export function TelemetryExplorer() {
     >
       <ModeNav active={mode} />
 
-      <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div
+        className={
+          replayCinemaActive
+            ? "grid gap-5"
+            : "grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]"
+        }
+      >
         {mode === "compare" ? (
           <ExplorerFilters
             sessions={sessions}
@@ -569,7 +627,7 @@ export function TelemetryExplorer() {
               void handleCompare();
             }}
           />
-        ) : (
+        ) : replayCinemaActive ? null : (
           <ReplayFilters
             sessions={sessions}
             drivers={drivers}
@@ -683,17 +741,51 @@ export function TelemetryExplorer() {
               {replay && replaySharePath ? (
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-                      Share this replay
-                    </p>
-                    <ShareButtons
-                      title={replayShareTitle}
-                      url={replaySharePath}
-                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                        {replayCinemaActive
+                          ? "Cinema mode · setup hidden"
+                          : "Share this replay"}
+                      </p>
+                      <p className="hidden text-xs text-[var(--muted)] sm:block">
+                        Press{" "}
+                        <kbd className="rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-[0.7rem] text-white">
+                          T
+                        </kbd>{" "}
+                        to {replayCinemaActive ? "exit" : "enter"} cinema
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCinemaMode((current) => !current)}
+                        className="select-control !w-auto cursor-pointer px-4 text-xs uppercase tracking-[0.14em]"
+                        style={
+                          replayCinemaActive
+                            ? {
+                                borderColor: "var(--accent)",
+                                background: "var(--accent)",
+                                color: "white",
+                              }
+                            : undefined
+                        }
+                        aria-pressed={replayCinemaActive}
+                        title="Toggle cinema mode (T)"
+                      >
+                        {replayCinemaActive ? "Exit cinema" : "Cinema"}{" "}
+                        <span className="ml-1 opacity-70">T</span>
+                      </button>
+                      <ShareButtons
+                        title={replayShareTitle}
+                        url={replaySharePath}
+                      />
+                    </div>
                   </div>
                   <RaceReplayPlayer
                     key={`${replay.session.id}-${replay.driver.id}-${replay.driverB?.id ?? "solo"}`}
                     replay={replay}
+                    cinemaMode={replayCinemaActive}
+                    racePlaceLabel={replayRacePlaceLabel}
                   />
                 </>
               ) : null}

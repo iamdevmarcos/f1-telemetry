@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { TrackMap } from "@/components/TrackMap";
 import {
-  buildCarTrailSegments,
-  trackSpan,
-} from "@/lib/domain/replay-trail";
+  RaceDashboardHeader,
+  RaceLeaderboard,
+  RaceLiveTiming,
+} from "@/components/RaceDashboard";
+import { TrackMap } from "@/components/TrackMap";
+import { snapshotRaceDashboard } from "@/lib/domain/dashboard";
+import { buildCarTrailSegments } from "@/lib/domain/replay-trail";
 import type { Driver, Lap, RaceReplay, ReplayFrame } from "@/lib/domain/types";
 import { formatLapTime } from "@/lib/format";
 
@@ -75,7 +78,15 @@ function frameAtTime(frames: ReplayFrame[] | undefined, timeSeconds: number) {
   return { frame, index };
 }
 
-export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
+export function RaceReplayPlayer({
+  replay,
+  cinemaMode = false,
+  racePlaceLabel,
+}: {
+  replay: RaceReplay;
+  cinemaMode?: boolean;
+  racePlaceLabel?: string;
+}) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(4);
   const [timeSeconds, setTimeSeconds] = useState(0);
@@ -83,7 +94,6 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
   const lastStampRef = useRef<number | null>(null);
 
   const hasBattle = Boolean(replay.driverB && replay.framesB?.length);
-  const span = useMemo(() => trackSpan(replay.trackPath), [replay.trackPath]);
 
   const primary = useMemo(
     () => frameAtTime(replay.frames, timeSeconds),
@@ -111,7 +121,7 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
         trailSegments: buildCarTrailSegments(
           replay.frames,
           primary.index,
-          span,
+          replay.trackPath,
         ),
         colour: colourA,
         label: replay.driver.acronym,
@@ -124,7 +134,7 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
         trailSegments: buildCarTrailSegments(
           replay.framesB,
           secondary.index,
-          span,
+          replay.trackPath,
         ),
         colour: distinctColourB,
         label: replay.driverB!.acronym,
@@ -137,12 +147,12 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
     secondary,
     replay.frames,
     replay.framesB,
+    replay.trackPath,
     replay.driver,
     replay.driverB,
     colourA,
     distinctColourB,
     hasBattle,
-    span,
   ]);
 
   const currentLapA = findLap(replay.laps, primary.frame?.lapNumber);
@@ -151,6 +161,36 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
     primary.frame && secondary.frame
       ? primary.frame.lapNumber - secondary.frame.lapNumber
       : null;
+
+  const dashboardSnapshot = useMemo(() => {
+    if (!replay.dashboard) {
+      return null;
+    }
+
+    return snapshotRaceDashboard({
+      dashboard: replay.dashboard,
+      timeSeconds,
+      focusedDriver: replay.driver,
+      focusedLaps: replay.laps,
+      focusedFrames: replay.frames,
+      focusedFrame: primary.frame,
+      focusedDriverB: replay.driverB,
+      focusedLapsB: replay.lapsB,
+      focusedFramesB: replay.framesB,
+      focusedFrameB: secondary.frame,
+    });
+  }, [replay, timeSeconds, primary.frame, secondary.frame]);
+
+  const fastestDriverAcronym = useMemo(() => {
+    if (!dashboardSnapshot?.fastestLap || !replay.dashboard) {
+      return null;
+    }
+    return (
+      replay.dashboard.drivers.find(
+        (driver) => driver.id === dashboardSnapshot.fastestLap?.driverId,
+      )?.acronym ?? null
+    );
+  }, [dashboardSnapshot, replay.dashboard]);
 
   useEffect(() => {
     if (!playing) {
@@ -192,10 +232,16 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
   }, [playing, speed, replay.durationSeconds]);
 
   return (
-    <section className="panel animate-rise space-y-4 p-4 md:p-5">
+    <section
+      className={`panel animate-rise space-y-4 p-4 md:p-5 ${
+        cinemaMode ? "border-[var(--accent)]" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="field-label">Race replay</p>
+          <p className="field-label">
+            {cinemaMode ? "Race replay · cinema" : "Race replay"}
+          </p>
           <h2 className="font-[family-name:var(--font-teko)] text-3xl uppercase leading-none tracking-wide md:text-4xl">
             <span style={{ color: colourA }}>{replay.driver.acronym}</span>
             {hasBattle ? (
@@ -227,7 +273,55 @@ export function RaceReplayPlayer({ replay }: { replay: RaceReplay }) {
         </p>
       </div>
 
-      <TrackMap trackPath={replay.trackPath} cars={cars} />
+      {dashboardSnapshot ? (
+        <RaceDashboardHeader
+          circuitLabel={
+            racePlaceLabel ||
+            replay.session.countryName ||
+            replay.session.circuitShortName
+          }
+          lapLabel={`L${primary.frame?.lapNumber ?? "—"}/${replay.totalLaps}`}
+          fastestLap={dashboardSnapshot.fastestLap}
+          fastestDriverAcronym={fastestDriverAcronym}
+          weather={dashboardSnapshot.weather}
+        />
+      ) : null}
+
+      <div
+        className={
+          dashboardSnapshot
+            ? "grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_220px]"
+            : undefined
+        }
+      >
+        {dashboardSnapshot ? (
+          <div className="order-2 lg:order-1">
+            <RaceLeaderboard
+              rows={dashboardSnapshot.leaderboard}
+              highlightDriverIds={[
+                replay.driver.id,
+                ...(replay.driverB ? [replay.driverB.id] : []),
+              ]}
+            />
+          </div>
+        ) : null}
+
+        <div className={dashboardSnapshot ? "order-1 lg:order-2" : undefined}>
+          <TrackMap trackPath={replay.trackPath} cars={cars} />
+        </div>
+
+        {dashboardSnapshot ? (
+          <div className="order-3">
+            <RaceLiveTiming
+              snapshot={dashboardSnapshot}
+              colourA={colourA}
+              colourB={hasBattle ? distinctColourB : undefined}
+              labelA={replay.driver.acronym}
+              labelB={hasBattle ? replay.driverB!.acronym : undefined}
+            />
+          </div>
+        ) : null}
+      </div>
 
       {hasBattle ? (
         <div className="grid gap-3 lg:grid-cols-2">

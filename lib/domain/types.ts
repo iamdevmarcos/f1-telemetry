@@ -93,6 +93,90 @@ export interface ReplayFrame {
   rpm: number;
 }
 
+export type RaceGap =
+  | { type: "leader" }
+  | { type: "seconds"; value: number }
+  | { type: "laps"; value: number };
+
+export interface PositionSample {
+  relativeTimeSeconds: number;
+  driverId: string;
+  position: number;
+}
+
+export interface IntervalSample {
+  relativeTimeSeconds: number;
+  driverId: string;
+  gapToLeader: RaceGap;
+  interval: RaceGap;
+}
+
+export interface TyreStint {
+  driverId: string;
+  stintNumber: number;
+  compound: string;
+  lapStart: number;
+  lapEnd: number | null;
+  tyreAgeAtStart: number;
+}
+
+export interface WeatherSample {
+  relativeTimeSeconds: number;
+  airTempC: number | null;
+  trackTempC: number | null;
+  humidityPercent: number | null;
+  rainfall: boolean;
+  windSpeed: number | null;
+}
+
+export interface FastestLapInfo {
+  driverId: string;
+  lapNumber: number;
+  lapTimeSeconds: number;
+}
+
+export interface RaceDashboard {
+  drivers: Driver[];
+  raceStartMs: number;
+  positions: PositionSample[];
+  intervals: IntervalSample[];
+  stints: TyreStint[];
+  weather: WeatherSample[];
+  sessionLaps: Lap[];
+  fastestLap: FastestLapInfo | null;
+}
+
+export interface LeaderboardRow {
+  position: number;
+  driver: Driver;
+  gapToLeader: RaceGap;
+  interval: RaceGap;
+  compound: string | null;
+  tyreAgeLaps: number | null;
+}
+
+export interface DriverLiveTiming {
+  driverId: string;
+  currentLapNumber: number | null;
+  currentLapElapsedSeconds: number | null;
+  lastLapSeconds: number | null;
+  bestLapSeconds: number | null;
+  deltaToBestSeconds: number | null;
+  compound: string | null;
+  tyreAgeLaps: number | null;
+  position: number | null;
+  gapToLeader: RaceGap | null;
+  interval: RaceGap | null;
+}
+
+export interface RaceDashboardSnapshot {
+  leaderboard: LeaderboardRow[];
+  weather: WeatherSample | null;
+  fastestLap: FastestLapInfo | null;
+  focused: DriverLiveTiming | null;
+  focusedB: DriverLiveTiming | null;
+}
+
 export interface RaceReplay {
   session: Session;
   driver: Driver;
@@ -104,6 +188,7 @@ export interface RaceReplay {
   framesB?: ReplayFrame[];
   durationSeconds: number;
   totalLaps: number;
+  dashboard?: RaceDashboard;
 }
 
 export interface NewsArticle {

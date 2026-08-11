@@ -1,0 +1,220 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  buildRaceDashboard,
+  formatRaceGap,
+  parseRaceGap,
+  resolveStintAtLap,
+  snapshotRaceDashboard,
+  tyreAgeAtLap,
+} from "@/lib/domain/dashboard";
+import type { Driver, Lap, ReplayFrame } from "@/lib/domain/types";
+
+const driverA: Driver = {
+  id: "1",
+  number: 1,
+  acronym: "VER",
+  fullName: "Max Verstappen",
+  teamName: "Red Bull Racing",
+  teamColour: "#3671C6",
+};
+
+const driverB: Driver = {
+  id: "16",
+  number: 16,
+  acronym: "LEC",
+  fullName: "Charles Leclerc",
+  teamName: "Ferrari",
+  teamColour: "#E8002D",
+};
+
+const raceStartMs = Date.parse("2024-01-01T12:00:00.000Z");
+
+function lap(
+  driverId: string,
+  lapNumber: number,
+  time: number,
+  dateStart: string,
+): Lap {
+  return {
+    driverId,
+    lapNumber,
+    lapTimeSeconds: time,
+    sector1Seconds: null,
+    sector2Seconds: null,
+    sector3Seconds: null,
+    dateStart,
+  };
+}
+
+function frame(
+  lapNumber: number,
+  relativeTimeSeconds: number,
+  timestamp: string,
+): ReplayFrame {
+  return {
+    timestamp,
+    relativeTimeSeconds,
+    lapNumber,
+    x: 0,
+    y: 0,
+    speed: 280,
+    throttle: 100,
+    brake: 0,
+    gear: 8,
+    rpm: 11000,
+  };
+}
+
+describe("parseRaceGap / formatRaceGap", () => {
+  it("parses leader, seconds and lapped gaps", () => {
+    expect(parseRaceGap(null)).toEqual({ type: "leader" });
+    expect(parseRaceGap(1.234)).toEqual({ type: "seconds", value: 1.234 });
+    expect(parseRaceGap("+1 LAP")).toEqual({ type: "laps", value: 1 });
+  });
+
+  it("formats gaps for UI", () => {
+    expect(formatRaceGap({ type: "leader" })).toBe("Leader");
+    expect(formatRaceGap({ type: "seconds", value: 2.5 })).toBe("+2.500");
+    expect(formatRaceGap({ type: "laps", value: 2 })).toBe("+2 LAPS");
+  });
+});
+
+describe("stint helpers", () => {
+  it("resolves active stint and tyre age", () => {
+    const stints = [
+      {
+        driverId: "1",
+        stintNumber: 1,
+        compound: "MEDIUM",
+        lapStart: 1,
+        lapEnd: 20,
+        tyreAgeAtStart: 0,
+      },
+      {
+        driverId: "1",
+        stintNumber: 2,
+        compound: "HARD",
+        lapStart: 21,
+        lapEnd: null,
+        tyreAgeAtStart: 0,
+      },
+    ];
+
+    const stint = resolveStintAtLap(stints, "1", 25);
+    expect(stint?.compound).toBe("HARD");
+    expect(tyreAgeAtLap(stint, 25)).toBe(4);
+  });
+});
+
+describe("buildRaceDashboard + snapshotRaceDashboard", () => {
+  it("builds leaderboard and focused live timing at a given time", () => {
+    const dashboard = buildRaceDashboard({
+      drivers: [driverA, driverB],
+      raceStartMs,
+      positions: [
+        {
+          date: "2024-01-01T12:00:00.000Z",
+          driver_number: 1,
+          position: 1,
+        },
+        {
+          date: "2024-01-01T12:00:00.000Z",
+          driver_number: 16,
+          position: 2,
+        },
+        {
+          date: "2024-01-01T12:10:00.000Z",
+          driver_number: 16,
+          position: 1,
+        },
+        {
+          date: "2024-01-01T12:10:00.000Z",
+          driver_number: 1,
+          position: 2,
+        },
+      ],
+      intervals: [
+        {
+          date: "2024-01-01T12:10:00.000Z",
+          driver_number: 16,
+          gap_to_leader: null,
+          interval: null,
+        },
+        {
+          date: "2024-01-01T12:10:00.000Z",
+          driver_number: 1,
+          gap_to_leader: 1.5,
+          interval: 1.5,
+        },
+      ],
+      stints: [
+        {
+          driver_number: 1,
+          stint_number: 1,
+          compound: "SOFT",
+          lap_start: 1,
+          lap_end: null,
+          tyre_age_at_start: 0,
+        },
+        {
+          driver_number: 16,
+          stint_number: 1,
+          compound: "MEDIUM",
+          lap_start: 1,
+          lap_end: null,
+          tyre_age_at_start: 2,
+        },
+      ],
+      weather: [
+        {
+          date: "2024-01-01T12:05:00.000Z",
+          air_temperature: 22,
+          track_temperature: 32,
+          humidity: 40,
+          rainfall: 0,
+          wind_speed: 2,
+        },
+      ],
+      sessionLaps: [
+        lap("1", 1, 90, "2024-01-01T12:00:00.000Z"),
+        lap("1", 2, 89, "2024-01-01T12:01:30.000Z"),
+        lap("16", 1, 91, "2024-01-01T12:00:01.000Z"),
+        lap("16", 2, 88.5, "2024-01-01T12:01:32.000Z"),
+      ],
+    });
+
+    expect(dashboard.fastestLap).toEqual({
+      driverId: "16",
+      lapNumber: 2,
+      lapTimeSeconds: 88.5,
+    });
+
+    const focusedLaps: Lap[] = [
+      lap("1", 1, 90, "2024-01-01T12:00:00.000Z"),
+      lap("1", 2, 89, "2024-01-01T12:01:30.000Z"),
+      {
+        ...lap("1", 3, 0, "2024-01-01T12:03:00.000Z"),
+        lapTimeSeconds: null,
+      },
+    ];
+
+    const snapshot = snapshotRaceDashboard({
+      dashboard,
+      timeSeconds: 600,
+      focusedDriver: driverA,
+      focusedLaps,
+      focusedFrames: [frame(3, 600, "2024-01-01T12:10:00.000Z")],
+      focusedFrame: frame(3, 600, "2024-01-01T12:10:00.000Z"),
+    });
+
+    expect(snapshot.leaderboard[0]?.driver.acronym).toBe("LEC");
+    expect(snapshot.leaderboard[1]?.driver.acronym).toBe("VER");
+    expect(formatRaceGap(snapshot.leaderboard[1]?.gapToLeader)).toBe("+1.500");
+    expect(snapshot.weather?.trackTempC).toBe(32);
+    expect(snapshot.focused?.compound).toBe("S");
+    expect(snapshot.focused?.lastLapSeconds).toBe(89);
+    expect(snapshot.focused?.bestLapSeconds).toBe(89);
+    expect(snapshot.focused?.position).toBe(2);
+  });
+});

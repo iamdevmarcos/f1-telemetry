@@ -8,9 +8,13 @@ import {
 import type {
   OpenF1CarData,
   OpenF1Driver,
+  OpenF1Interval,
   OpenF1Lap,
   OpenF1Location,
+  OpenF1Position,
   OpenF1Session,
+  OpenF1Stint,
+  OpenF1Weather,
 } from "@/lib/infrastructure/openf1/types";
 
 const DEFAULT_BASE_URL = "https://api.openf1.org/v1";
@@ -240,4 +244,42 @@ export async function fetchLocationForWindow(
     `&date<=${encodeURIComponent(dateEndIso)}`;
 
   return openF1Fetch<OpenF1Location[]>(path);
+}
+
+export async function fetchPositions(
+  sessionKey: number,
+): Promise<OpenF1Position[]> {
+  return openF1Fetch<OpenF1Position[]>(
+    `/position${toQuery({ session_key: sessionKey })}`,
+  );
+}
+
+export async function fetchIntervals(
+  sessionKey: number,
+): Promise<OpenF1Interval[]> {
+  return openF1Fetch<OpenF1Interval[]>(
+    `/intervals${toQuery({ session_key: sessionKey })}`,
+  );
+}
+
+export async function fetchStints(sessionKey: number): Promise<OpenF1Stint[]> {
+  return openF1Fetch<OpenF1Stint[]>(
+    `/stints${toQuery({ session_key: sessionKey })}`,
+  );
+}
+
+export async function fetchWeather(
+  sessionKey: number,
+): Promise<OpenF1Weather[]> {
+  return openF1Fetch<OpenF1Weather[]>(
+    `/weather${toQuery({ session_key: sessionKey })}`,
+  );
+}
+
+export async function fetchSessionLaps(
+  sessionKey: number,
+): Promise<OpenF1Lap[]> {
+  return openF1Fetch<OpenF1Lap[]>(
+    `/laps${toQuery({ session_key: sessionKey })}`,
+  );
 }

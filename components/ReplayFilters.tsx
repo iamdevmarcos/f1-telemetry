@@ -145,6 +145,14 @@ export function ReplayFilters({
         Optional second driver puts both cars on track at the same race clock.
         Battle loads take longer (~40–70s).
       </p>
+
+      <p className="text-xs leading-relaxed text-[var(--muted)]">
+        After loading, press{" "}
+        <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[0.7rem] text-white">
+          T
+        </kbd>{" "}
+        for cinema mode — hides this setup panel and focuses the replay.
+      </p>
     </aside>
   );
 }

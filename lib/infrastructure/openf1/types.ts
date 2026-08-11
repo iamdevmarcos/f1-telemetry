@@ -51,3 +51,38 @@ export interface OpenF1Location {
   y: number;
   z: number;
 }
+
+export interface OpenF1Position {
+  session_key: number;
+  driver_number: number;
+  date: string;
+  position: number;
+}
+
+export interface OpenF1Interval {
+  session_key: number;
+  driver_number: number;
+  date: string;
+  gap_to_leader: number | string | null;
+  interval: number | string | null;
+}
+
+export interface OpenF1Stint {
+  session_key: number;
+  driver_number: number;
+  stint_number: number;
+  compound: string;
+  lap_start: number;
+  lap_end: number | null;
+  tyre_age_at_start: number;
+}
+
+export interface OpenF1Weather {
+  session_key: number;
+  date: string;
+  air_temperature: number | null;
+  track_temperature: number | null;
+  humidity: number | null;
+  rainfall: number | boolean | null;
+  wind_speed: number | null;
+}

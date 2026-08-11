@@ -1,5 +1,6 @@
 import "server-only";
 
+import { buildRaceDashboard } from "@/lib/domain/dashboard";
 import {
   buildReplayFrames,
   buildTrackPath,
@@ -10,7 +11,13 @@ import {
 } from "@/lib/domain/replay";
 import { resolveLapWindow } from "@/lib/domain/compare";
 import { isRaceAvailable } from "@/lib/domain/session";
-import type { Driver, Lap, RaceReplay, ReplayFrame } from "@/lib/domain/types";
+import type {
+  Driver,
+  Lap,
+  RaceDashboard,
+  RaceReplay,
+  ReplayFrame,
+} from "@/lib/domain/types";
 import type {
   OpenF1CarData,
   OpenF1Driver,
@@ -19,9 +26,14 @@ import type {
 import {
   fetchCarDataForWindow,
   fetchDrivers,
+  fetchIntervals,
   fetchLaps,
   fetchLocationForWindow,
+  fetchPositions,
   fetchSession,
+  fetchSessionLaps,
+  fetchStints,
+  fetchWeather,
   OpenF1Error,
 } from "@/lib/infrastructure/openf1/client";
 import {
@@ -260,6 +272,12 @@ export async function getRaceReplay(input: {
     lapsB?.[lapsB.length - 1]?.lapNumber ?? 0,
   );
 
+  const dashboard = await loadRaceDashboard({
+    sessionKey,
+    raceStartMs,
+    drivers: rawDrivers.map(mapDriver),
+  });
+
   return {
     session,
     driver,
@@ -273,5 +291,47 @@ export async function getRaceReplay(input: {
     framesB,
     durationSeconds,
     totalLaps,
+    dashboard: dashboard ?? undefined,
   };
+}
+
+async function loadRaceDashboard(input: {
+  sessionKey: number;
+  raceStartMs: number;
+  drivers: Driver[];
+}): Promise<RaceDashboard | null> {
+  try {
+    const settled = await Promise.allSettled([
+      fetchPositions(input.sessionKey),
+      fetchIntervals(input.sessionKey),
+      fetchStints(input.sessionKey),
+      fetchWeather(input.sessionKey),
+      fetchSessionLaps(input.sessionKey),
+    ]);
+
+    const positions =
+      settled[0].status === "fulfilled" ? settled[0].value : [];
+    const intervals =
+      settled[1].status === "fulfilled" ? settled[1].value : [];
+    const stints = settled[2].status === "fulfilled" ? settled[2].value : [];
+    const weather = settled[3].status === "fulfilled" ? settled[3].value : [];
+    const rawSessionLaps =
+      settled[4].status === "fulfilled" ? settled[4].value : [];
+
+    if (positions.length === 0 && intervals.length === 0) {
+      return null;
+    }
+
+    return buildRaceDashboard({
+      drivers: input.drivers,
+      raceStartMs: input.raceStartMs,
+      positions,
+      intervals,
+      stints,
+      weather,
+      sessionLaps: rawSessionLaps.map(mapLap),
+    });
+  } catch {
+    return null;
+  }
 }
