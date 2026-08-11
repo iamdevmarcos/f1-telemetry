@@ -1,4 +1,6 @@
+import { classifyDrsStatus } from "@/lib/domain/drs";
 import type {
+  DrsStatus,
   Lap,
   ReplayFrame,
   TrackPoint,
@@ -11,6 +13,7 @@ interface TimedCarSample {
   brake: number;
   gear: number;
   rpm: number;
+  drs: DrsStatus;
 }
 
 interface TimedLocationSample {
@@ -115,6 +118,7 @@ export function buildReplayFrames(input: {
       brake: car?.brake ?? 0,
       gear: car?.gear ?? 0,
       rpm: car?.rpm ?? 0,
+      drs: car?.drs ?? "unknown",
     });
   }
 
@@ -162,6 +166,7 @@ export function toTimedCarSamples(
     brake: number;
     n_gear: number;
     rpm: number;
+    drs?: number | null;
   }>,
 ): TimedCarSample[] {
   return samples
@@ -172,6 +177,7 @@ export function toTimedCarSamples(
       brake: sample.brake ?? 0,
       gear: sample.n_gear ?? 0,
       rpm: sample.rpm ?? 0,
+      drs: classifyDrsStatus(sample.drs),
     }))
     .filter((sample) => Number.isFinite(sample.timestampMs))
     .sort((a, b) => a.timestampMs - b.timestampMs);

@@ -7,6 +7,7 @@ import {
   RaceLeaderboard,
   RaceLiveTiming,
 } from "@/components/RaceDashboard";
+import { OnboardHud } from "@/components/OnboardHud";
 import { TrackMap } from "@/components/TrackMap";
 import { snapshotRaceDashboard } from "@/lib/domain/dashboard";
 import { buildCarTrailSegments } from "@/lib/domain/replay-trail";
@@ -17,7 +18,6 @@ import type {
   RaceReplay,
   ReplayFrame,
 } from "@/lib/domain/types";
-import { formatLapTime } from "@/lib/format";
 
 const SPEEDS = [1, 2, 4, 8, 16] as const;
 
@@ -378,13 +378,13 @@ export function RaceReplayPlayer({
 
       {hasBattle ? (
         <div className="grid gap-3 lg:grid-cols-2">
-          <DriverHud
+          <OnboardHud
             driver={replay.driver}
             colour={colourA}
             frame={primary.frame}
             lap={currentLapA}
           />
-          <DriverHud
+          <OnboardHud
             driver={replay.driverB!}
             colour={distinctColourB}
             frame={secondary.frame}
@@ -392,36 +392,15 @@ export function RaceReplayPlayer({
           />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <HudTile
-            label="Speed"
-            value={`${Math.round(primary.frame?.speed ?? 0)}`}
-            unit="km/h"
-          />
-          <HudTile label="Gear" value={`${primary.frame?.gear ?? 0}`} unit="" />
-          <HudTile
-            label="Throttle"
-            value={`${Math.round(primary.frame?.throttle ?? 0)}`}
-            unit="%"
-          />
-          <HudTile
-            label="Brake"
-            value={`${Math.round(primary.frame?.brake ?? 0)}`}
-            unit="%"
-          />
-        </div>
+        <OnboardHud
+          driver={replay.driver}
+          colour={colourA}
+          frame={primary.frame}
+          lap={currentLapA}
+        />
       )}
 
       <div className="border border-[var(--border)] bg-[var(--bg-elevated)] p-3">
-        {!hasBattle ? (
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-            <span>
-              Lap time {formatLapTime(currentLapA?.lapTimeSeconds ?? null)}
-            </span>
-            <span>RPM {Math.round(primary.frame?.rpm ?? 0)}</span>
-          </div>
-        ) : null}
-
         <input
           type="range"
           min={0}
@@ -485,68 +464,4 @@ function findLap(laps: Lap[] | undefined, lapNumber: number | undefined) {
     return undefined;
   }
   return laps.find((lap) => lap.lapNumber === lapNumber);
-}
-
-function DriverHud({
-  driver,
-  colour,
-  frame,
-  lap,
-}: {
-  driver: Driver;
-  colour: string;
-  frame: ReplayFrame | null;
-  lap: Lap | undefined;
-}) {
-  return (
-    <div className="border border-[var(--border)] bg-[var(--bg-elevated)] p-3">
-      <div className="mb-3 flex items-baseline justify-between gap-2">
-        <p
-          className="font-[family-name:var(--font-teko)] text-2xl uppercase leading-none"
-          style={{ color: colour }}
-        >
-          {driver.acronym}
-        </p>
-        <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-          Lap {frame?.lapNumber ?? "—"} · {formatLapTime(lap?.lapTimeSeconds ?? null)}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <HudTile label="Speed" value={`${Math.round(frame?.speed ?? 0)}`} unit="km/h" />
-        <HudTile label="Gear" value={`${frame?.gear ?? 0}`} unit="" />
-        <HudTile
-          label="Throttle"
-          value={`${Math.round(frame?.throttle ?? 0)}`}
-          unit="%"
-        />
-        <HudTile
-          label="Brake"
-          value={`${Math.round(frame?.brake ?? 0)}`}
-          unit="%"
-        />
-      </div>
-    </div>
-  );
-}
-
-function HudTile({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-}) {
-  return (
-    <div className="border border-[var(--border)] bg-[var(--bg)] p-2">
-      <p className="field-label mb-1">{label}</p>
-      <p className="delta-value font-[family-name:var(--font-teko)] text-2xl leading-none md:text-3xl">
-        {value}
-        {unit ? (
-          <span className="ml-1 text-sm text-[var(--muted)]">{unit}</span>
-        ) : null}
-      </p>
-    </div>
-  );
 }

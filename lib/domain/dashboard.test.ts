@@ -70,6 +70,7 @@ function frame(
     brake: 0,
     gear: 8,
     rpm: 11000,
+    drs: "off",
   };
 }
 

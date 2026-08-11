@@ -18,6 +18,7 @@ function frame(
     brake: 0,
     gear: 7,
     rpm: 10000,
+    drs: "off",
     ...overrides,
   };
 }

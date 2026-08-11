@@ -61,6 +61,7 @@ describe("buildReplayFrames", () => {
           brake: 0,
           gear: 7,
           rpm: 11000,
+          drs: "on" as const,
         },
       ],
     });
@@ -73,6 +74,7 @@ describe("buildReplayFrames", () => {
       x: 10,
       y: 20,
       relativeTimeSeconds: 1,
+      drs: "on",
     });
   });
 });
@@ -90,6 +92,7 @@ describe("downsampleReplayFrames", () => {
       brake: 0,
       gear: 7,
       rpm: 10000,
+      drs: "off" as const,
     }));
 
     const result = downsampleReplayFrames(frames, 100);

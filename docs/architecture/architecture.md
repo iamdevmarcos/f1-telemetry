@@ -367,7 +367,7 @@ Toda comunicação externa passa por `lib/infrastructure/openf1/client.ts`.
 | `GET /sessions?session_key=` | Detalhe de uma sessão |
 | `GET /drivers` | Pilotos da sessão |
 | `GET /laps` | Voltas (com filtros) |
-| `GET /car_data` | Speed, throttle, brake, gear, rpm |
+| `GET /car_data` | Speed, throttle, brake, gear, rpm, DRS |
 | `GET /location` | Coordenadas x/y no circuito (replay) |
 | `GET /position` | Posição na corrida ao longo do tempo |
 | `GET /intervals` | Gap para o líder e intervalo entre carros |

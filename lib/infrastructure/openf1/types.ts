@@ -41,6 +41,7 @@ export interface OpenF1CarData {
   brake: number;
   n_gear: number;
   rpm: number;
+  drs?: number | null;
 }
 
 export interface OpenF1Location {

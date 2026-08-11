@@ -85,6 +85,8 @@ export interface TrackSectorPath {
   points: TrackPoint[];
 }
 
+export type DrsStatus = "off" | "eligible" | "on" | "unknown";
+
 export interface ReplayFrame {
   timestamp: string;
   relativeTimeSeconds: number;
@@ -96,6 +98,7 @@ export interface ReplayFrame {
   brake: number;
   gear: number;
   rpm: number;
+  drs: DrsStatus;
 }
 
 export type RaceGap =
