@@ -29,6 +29,7 @@ import {
   fetchIntervals,
   fetchLaps,
   fetchLocationForWindow,
+  fetchPits,
   fetchPositions,
   fetchSession,
   fetchSessionLaps,
@@ -307,6 +308,7 @@ async function loadRaceDashboard(input: {
       fetchStints(input.sessionKey),
       fetchWeather(input.sessionKey),
       fetchSessionLaps(input.sessionKey),
+      fetchPits(input.sessionKey),
     ]);
 
     const positions =
@@ -317,6 +319,7 @@ async function loadRaceDashboard(input: {
     const weather = settled[3].status === "fulfilled" ? settled[3].value : [];
     const rawSessionLaps =
       settled[4].status === "fulfilled" ? settled[4].value : [];
+    const pits = settled[5].status === "fulfilled" ? settled[5].value : [];
 
     if (positions.length === 0 && intervals.length === 0) {
       return null;
@@ -328,6 +331,7 @@ async function loadRaceDashboard(input: {
       positions,
       intervals,
       stints,
+      pits,
       weather,
       sessionLaps: rawSessionLaps.map(mapLap),
     });

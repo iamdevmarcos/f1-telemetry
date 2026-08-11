@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildLastLapSectors,
   buildRaceDashboard,
+  classifySectorTone,
   formatRaceGap,
   parseRaceGap,
   resolveStintAtLap,
@@ -35,14 +37,19 @@ function lap(
   lapNumber: number,
   time: number,
   dateStart: string,
+  sectors?: {
+    s1?: number | null;
+    s2?: number | null;
+    s3?: number | null;
+  },
 ): Lap {
   return {
     driverId,
     lapNumber,
     lapTimeSeconds: time,
-    sector1Seconds: null,
-    sector2Seconds: null,
-    sector3Seconds: null,
+    sector1Seconds: sectors?.s1 ?? null,
+    sector2Seconds: sectors?.s2 ?? null,
+    sector3Seconds: sectors?.s3 ?? null,
     dateStart,
   };
 }
@@ -107,8 +114,51 @@ describe("stint helpers", () => {
   });
 });
 
+describe("sector tones", () => {
+  it("classifies purple, green and yellow correctly", () => {
+    expect(classifySectorTone(25.1, 25.1, 25.1)).toBe("purple");
+    expect(classifySectorTone(25.3, 25.3, 25.1)).toBe("green");
+    expect(classifySectorTone(25.8, 25.3, 25.1)).toBe("yellow");
+    expect(classifySectorTone(null, 25.1, 25.1)).toBe("none");
+  });
+
+  it("builds last-lap sector tones against personal and session bests", () => {
+    const lastLap = lap("1", 2, 88, "2024-01-01T12:01:30.000Z", {
+      s1: 28.0,
+      s2: 36.5,
+      s3: 26.8,
+    });
+    const driverLaps = [
+      lap("1", 1, 90, "2024-01-01T12:00:00.000Z", {
+        s1: 28.5,
+        s2: 36.2,
+        s3: 27.0,
+      }),
+      lastLap,
+    ];
+    const sessionLaps = [
+      ...driverLaps,
+      lap("16", 1, 89, "2024-01-01T12:00:01.000Z", {
+        s1: 27.9,
+        s2: 36.0,
+        s3: 26.5,
+      }),
+    ];
+
+    const sectors = buildLastLapSectors({
+      lastLap,
+      driverCompletedLaps: driverLaps,
+      sessionCompletedLaps: sessionLaps,
+    });
+
+    expect(sectors[0]?.tone).toBe("green");
+    expect(sectors[1]?.tone).toBe("yellow");
+    expect(sectors[2]?.tone).toBe("green");
+  });
+});
+
 describe("buildRaceDashboard + snapshotRaceDashboard", () => {
-  it("builds leaderboard and focused live timing at a given time", () => {
+  it("builds timing grid with last/best/pits/sectors at a given time", () => {
     const dashboard = buildRaceDashboard({
       drivers: [driverA, driverB],
       raceStartMs,
@@ -166,6 +216,16 @@ describe("buildRaceDashboard + snapshotRaceDashboard", () => {
           tyre_age_at_start: 2,
         },
       ],
+      pits: [
+        {
+          date: "2024-01-01T12:05:00.000Z",
+          driver_number: 1,
+          lap_number: 12,
+          lane_duration: 22.1,
+          pit_duration: 22.1,
+          stop_duration: 2.3,
+        },
+      ],
       weather: [
         {
           date: "2024-01-01T12:05:00.000Z",
@@ -177,10 +237,26 @@ describe("buildRaceDashboard + snapshotRaceDashboard", () => {
         },
       ],
       sessionLaps: [
-        lap("1", 1, 90, "2024-01-01T12:00:00.000Z"),
-        lap("1", 2, 89, "2024-01-01T12:01:30.000Z"),
-        lap("16", 1, 91, "2024-01-01T12:00:01.000Z"),
-        lap("16", 2, 88.5, "2024-01-01T12:01:32.000Z"),
+        lap("1", 1, 90, "2024-01-01T12:00:00.000Z", {
+          s1: 30,
+          s2: 35,
+          s3: 25,
+        }),
+        lap("1", 2, 89, "2024-01-01T12:01:30.000Z", {
+          s1: 29.5,
+          s2: 34.5,
+          s3: 25,
+        }),
+        lap("16", 1, 91, "2024-01-01T12:00:01.000Z", {
+          s1: 30.2,
+          s2: 35.1,
+          s3: 25.7,
+        }),
+        lap("16", 2, 88.5, "2024-01-01T12:01:32.000Z", {
+          s1: 29.0,
+          s2: 34.0,
+          s3: 25.5,
+        }),
       ],
     });
 
@@ -189,6 +265,7 @@ describe("buildRaceDashboard + snapshotRaceDashboard", () => {
       lapNumber: 2,
       lapTimeSeconds: 88.5,
     });
+    expect(dashboard.pits).toHaveLength(1);
 
     const focusedLaps: Lap[] = [
       lap("1", 1, 90, "2024-01-01T12:00:00.000Z"),
@@ -216,5 +293,22 @@ describe("buildRaceDashboard + snapshotRaceDashboard", () => {
     expect(snapshot.focused?.lastLapSeconds).toBe(89);
     expect(snapshot.focused?.bestLapSeconds).toBe(89);
     expect(snapshot.focused?.position).toBe(2);
+
+    const ver = snapshot.leaderboard[1]!;
+    expect(ver.lastLapSeconds).toBe(89);
+    expect(ver.bestLapSeconds).toBe(89);
+    expect(ver.pitCount).toBe(1);
+    expect(ver.lastPitLap).toBe(12);
+    expect(ver.sectors[0]?.tone).toBe("green");
+    expect(ver.sectors[1]?.tone).toBe("green");
+    expect(ver.sectors[2]?.tone).toBe("purple");
+
+    const lec = snapshot.leaderboard[0]!;
+    expect(lec.lastLapSeconds).toBe(88.5);
+    expect(lec.bestLapSeconds).toBe(88.5);
+    expect(lec.pitCount).toBe(0);
+    expect(lec.sectors[0]?.tone).toBe("purple");
+    expect(lec.sectors[1]?.tone).toBe("purple");
+    expect(lec.sectors[2]?.tone).toBe("green");
   });
 });

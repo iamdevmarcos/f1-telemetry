@@ -12,7 +12,7 @@ export function AppShell({
   return (
     <div className="app-shell">
       <header className="border-b border-[var(--border)]">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-5 md:flex-row md:items-end md:justify-between md:px-8">
+        <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-4 px-3 py-4 md:flex-row md:items-end md:justify-between md:px-4 xl:px-5">
           <div className="brand-mark animate-rise min-w-0">
             <span className="brand-bar" aria-hidden />
             <div className="min-w-0">
@@ -30,11 +30,11 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-8 md:py-8">
+      <main className="mx-auto w-full max-w-[1560px] flex-1 px-3 py-5 md:px-4 md:py-6 xl:px-5">
         {children}
       </main>
       <footer className="mt-auto">
-        <div className="mx-auto flex w-full max-w-[1400px] justify-center px-4 py-5 md:px-8">
+        <div className="mx-auto flex w-full max-w-[1560px] justify-center px-3 py-4 md:px-4 xl:px-5">
           <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
             Built by{" "}
             <a

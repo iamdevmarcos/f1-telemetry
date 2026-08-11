@@ -10,7 +10,12 @@ import {
 import { TrackMap } from "@/components/TrackMap";
 import { snapshotRaceDashboard } from "@/lib/domain/dashboard";
 import { buildCarTrailSegments } from "@/lib/domain/replay-trail";
-import type { Driver, Lap, RaceReplay, ReplayFrame } from "@/lib/domain/types";
+import type {
+  Driver,
+  Lap,
+  RaceReplay,
+  ReplayFrame,
+} from "@/lib/domain/types";
 import { formatLapTime } from "@/lib/format";
 
 const SPEEDS = [1, 2, 4, 8, 16] as const;
@@ -231,18 +236,27 @@ export function RaceReplayPlayer({
     };
   }, [playing, speed, replay.durationSeconds]);
 
+  const mapHeightClass = cinemaMode
+    ? "h-[min(50vh,500px)]"
+    : "h-[min(42vh,420px)]";
+
+  const highlightDriverIds = [
+    replay.driver.id,
+    ...(replay.driverB ? [replay.driverB.id] : []),
+  ];
+
   return (
     <section
-      className={`panel animate-rise space-y-4 p-4 md:p-5 ${
+      className={`panel animate-rise space-y-3 p-3 md:space-y-4 md:p-4 ${
         cinemaMode ? "border-[var(--accent)]" : ""
       }`}
     >
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="field-label">
             {cinemaMode ? "Race replay · cinema" : "Race replay"}
           </p>
-          <h2 className="font-[family-name:var(--font-teko)] text-3xl uppercase leading-none tracking-wide md:text-4xl">
+          <h2 className="font-[family-name:var(--font-teko)] text-2xl uppercase leading-none tracking-wide md:text-3xl xl:text-4xl">
             <span style={{ color: colourA }}>{replay.driver.acronym}</span>
             {hasBattle ? (
               <>
@@ -274,54 +288,84 @@ export function RaceReplayPlayer({
       </div>
 
       {dashboardSnapshot ? (
-        <RaceDashboardHeader
-          circuitLabel={
-            racePlaceLabel ||
-            replay.session.countryName ||
-            replay.session.circuitShortName
-          }
-          lapLabel={`L${primary.frame?.lapNumber ?? "—"}/${replay.totalLaps}`}
-          fastestLap={dashboardSnapshot.fastestLap}
-          fastestDriverAcronym={fastestDriverAcronym}
-          weather={dashboardSnapshot.weather}
-        />
-      ) : null}
+        <div className="space-y-3 md:space-y-4">
+          <RaceDashboardHeader
+            circuitLabel={
+              racePlaceLabel ||
+              replay.session.countryName ||
+              replay.session.circuitShortName
+            }
+            lapLabel={`L${primary.frame?.lapNumber ?? "—"}/${replay.totalLaps}`}
+            fastestLap={dashboardSnapshot.fastestLap}
+            fastestDriverAcronym={fastestDriverAcronym}
+            weather={dashboardSnapshot.weather}
+          />
 
-      <div
-        className={
-          dashboardSnapshot
-            ? "grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_220px]"
-            : undefined
-        }
-      >
-        {dashboardSnapshot ? (
-          <div className="order-2 lg:order-1">
-            <RaceLeaderboard
-              rows={dashboardSnapshot.leaderboard}
-              highlightDriverIds={[
-                replay.driver.id,
-                ...(replay.driverB ? [replay.driverB.id] : []),
-              ]}
+          <div className="hidden lg:grid lg:grid-cols-[minmax(220px,248px)_minmax(0,1fr)_minmax(168px,200px)] lg:gap-3">
+            <div className={`${mapHeightClass} min-h-0`}>
+              <RaceLeaderboard
+                variant="overlay"
+                fillHeight
+                rows={dashboardSnapshot.leaderboard}
+                highlightDriverIds={highlightDriverIds}
+              />
+            </div>
+
+            <TrackMap
+              trackPath={replay.trackPath}
+              cars={cars}
+              className={mapHeightClass}
+            />
+
+            <div
+              className={`${mapHeightClass} min-h-0 overflow-hidden`}
+            >
+              <RaceLiveTiming
+                variant="overlay"
+                fillHeight
+                dense={hasBattle}
+                snapshot={dashboardSnapshot}
+                colourA={colourA}
+                colourB={hasBattle ? distinctColourB : undefined}
+                labelA={replay.driver.acronym}
+                labelB={hasBattle ? replay.driverB!.acronym : undefined}
+              />
+            </div>
+          </div>
+
+          <div className="lg:hidden">
+            <TrackMap
+              trackPath={replay.trackPath}
+              cars={cars}
+              className={mapHeightClass}
             />
           </div>
-        ) : null}
-
-        <div className={dashboardSnapshot ? "order-1 lg:order-2" : undefined}>
-          <TrackMap trackPath={replay.trackPath} cars={cars} />
         </div>
+      ) : (
+        <div className="relative">
+          <TrackMap
+            trackPath={replay.trackPath}
+            cars={cars}
+            className={mapHeightClass}
+          />
+        </div>
+      )}
 
-        {dashboardSnapshot ? (
-          <div className="order-3">
-            <RaceLiveTiming
-              snapshot={dashboardSnapshot}
-              colourA={colourA}
-              colourB={hasBattle ? distinctColourB : undefined}
-              labelA={replay.driver.acronym}
-              labelB={hasBattle ? replay.driverB!.acronym : undefined}
-            />
-          </div>
-        ) : null}
-      </div>
+      {dashboardSnapshot ? (
+        <div className="grid gap-3 lg:hidden">
+          <RaceLeaderboard
+            rows={dashboardSnapshot.leaderboard}
+            highlightDriverIds={highlightDriverIds}
+          />
+          <RaceLiveTiming
+            snapshot={dashboardSnapshot}
+            colourA={colourA}
+            colourB={hasBattle ? distinctColourB : undefined}
+            labelA={replay.driver.acronym}
+            labelB={hasBattle ? replay.driverB!.acronym : undefined}
+          />
+        </div>
+      ) : null}
 
       {hasBattle ? (
         <div className="grid gap-3 lg:grid-cols-2">

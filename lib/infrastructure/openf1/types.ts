@@ -86,3 +86,13 @@ export interface OpenF1Weather {
   rainfall: number | boolean | null;
   wind_speed: number | null;
 }
+
+export interface OpenF1Pit {
+  session_key: number;
+  date: string;
+  driver_number: number;
+  lap_number: number;
+  lane_duration: number | null;
+  pit_duration: number | null;
+  stop_duration: number | null;
+}

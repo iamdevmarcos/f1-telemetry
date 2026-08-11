@@ -135,12 +135,28 @@ export interface FastestLapInfo {
   lapTimeSeconds: number;
 }
 
+export interface PitStop {
+  driverId: string;
+  relativeTimeSeconds: number;
+  lapNumber: number;
+  stopDurationSeconds: number | null;
+  laneDurationSeconds: number | null;
+}
+
+export type SectorTone = "purple" | "green" | "yellow" | "none";
+
+export interface SectorTiming {
+  seconds: number | null;
+  tone: SectorTone;
+}
+
 export interface RaceDashboard {
   drivers: Driver[];
   raceStartMs: number;
   positions: PositionSample[];
   intervals: IntervalSample[];
   stints: TyreStint[];
+  pits: PitStop[];
   weather: WeatherSample[];
   sessionLaps: Lap[];
   fastestLap: FastestLapInfo | null;
@@ -153,6 +169,12 @@ export interface LeaderboardRow {
   interval: RaceGap;
   compound: string | null;
   tyreAgeLaps: number | null;
+  lastLapSeconds: number | null;
+  bestLapSeconds: number | null;
+  pitCount: number;
+  lastPitLap: number | null;
+  sectors: [SectorTiming, SectorTiming, SectorTiming];
+  currentLapNumber: number | null;
 }
 
 export interface DriverLiveTiming {

@@ -11,6 +11,7 @@ import type {
   OpenF1Interval,
   OpenF1Lap,
   OpenF1Location,
+  OpenF1Pit,
   OpenF1Position,
   OpenF1Session,
   OpenF1Stint,
@@ -281,5 +282,11 @@ export async function fetchSessionLaps(
 ): Promise<OpenF1Lap[]> {
   return openF1Fetch<OpenF1Lap[]>(
     `/laps${toQuery({ session_key: sessionKey })}`,
+  );
+}
+
+export async function fetchPits(sessionKey: number): Promise<OpenF1Pit[]> {
+  return openF1Fetch<OpenF1Pit[]>(
+    `/pit${toQuery({ session_key: sessionKey })}`,
   );
 }

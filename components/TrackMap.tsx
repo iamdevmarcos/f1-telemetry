@@ -56,9 +56,11 @@ function toPath(points: TrackPoint[]): string {
 export function TrackMap({
   trackPath,
   cars,
+  className,
 }: {
   trackPath: TrackPoint[];
   cars: TrackCar[];
+  className?: string;
 }) {
   const bounds = useMemo(
     () => buildViewBox(trackPath.map(flipY)),
@@ -69,7 +71,11 @@ export function TrackMap({
   const strokeBase = Math.max(bounds.width, bounds.height);
 
   return (
-    <div className="relative aspect-[16/10] w-full overflow-hidden border border-[var(--border)] bg-[#0a0b0e]">
+    <div
+      className={`relative w-full overflow-hidden border border-[var(--border)] bg-[#0a0b0e] ${
+        className ?? "h-[min(42vh,420px)]"
+      }`}
+    >
       <div
         className="pointer-events-none absolute inset-0 opacity-40"
         style={{

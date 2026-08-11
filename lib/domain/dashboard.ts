@@ -5,11 +5,14 @@ import type {
   IntervalSample,
   Lap,
   LeaderboardRow,
+  PitStop,
   PositionSample,
   RaceDashboard,
   RaceDashboardSnapshot,
   RaceGap,
   ReplayFrame,
+  SectorTiming,
+  SectorTone,
   TyreStint,
   WeatherSample,
 } from "@/lib/domain/types";
@@ -144,6 +147,14 @@ export function buildRaceDashboard(input: {
     lap_end: number | null;
     tyre_age_at_start: number;
   }>;
+  pits?: Array<{
+    date: string;
+    driver_number: number;
+    lap_number: number;
+    lane_duration: number | null;
+    pit_duration: number | null;
+    stop_duration: number | null;
+  }>;
   weather: Array<{
     date: string;
     air_temperature: number | null;
@@ -205,12 +216,27 @@ export function buildRaceDashboard(input: {
     .filter((sample) => Number.isFinite(sample.relativeTimeSeconds))
     .sort((a, b) => a.relativeTimeSeconds - b.relativeTimeSeconds);
 
+  const pits: PitStop[] = (input.pits ?? [])
+    .map((sample) => {
+      const timestampMs = Date.parse(sample.date);
+      return {
+        relativeTimeSeconds: (timestampMs - input.raceStartMs) / 1000,
+        driverId: String(sample.driver_number),
+        lapNumber: sample.lap_number,
+        stopDurationSeconds: sample.stop_duration,
+        laneDurationSeconds: sample.lane_duration ?? sample.pit_duration,
+      };
+    })
+    .filter((sample) => Number.isFinite(sample.relativeTimeSeconds))
+    .sort((a, b) => a.relativeTimeSeconds - b.relativeTimeSeconds);
+
   return {
     drivers: input.drivers,
     raceStartMs: input.raceStartMs,
     positions: downsampleByDriverTime(positions, POSITION_MIN_GAP_SECONDS),
     intervals: downsampleByDriverTime(intervals, INTERVAL_MIN_GAP_SECONDS),
     stints,
+    pits,
     weather: downsampleWeather(weather, WEATHER_MIN_GAP_SECONDS),
     sessionLaps: input.sessionLaps,
     fastestLap: findFastestLap(input.sessionLaps),
@@ -338,6 +364,134 @@ export function resolveCompoundCode(compound: string | null): string | null {
   return compoundLabel(compound);
 }
 
+function sectorValue(lap: Lap, sector: 1 | 2 | 3): number | null {
+  if (sector === 1) return lap.sector1Seconds;
+  if (sector === 2) return lap.sector2Seconds;
+  return lap.sector3Seconds;
+}
+
+function completedLapsAt(
+  sessionLaps: Lap[],
+  absoluteMs: number,
+  driverId?: string,
+): Lap[] {
+  return sessionLaps.filter((lap) => {
+    if (driverId && lap.driverId !== driverId) {
+      return false;
+    }
+    if (lap.lapTimeSeconds === null || !lap.dateStart) {
+      return false;
+    }
+    const lapStartMs = Date.parse(lap.dateStart);
+    if (!Number.isFinite(lapStartMs)) {
+      return false;
+    }
+    const lapEndMs = lapStartMs + lap.lapTimeSeconds * 1000;
+    return lapEndMs <= absoluteMs;
+  });
+}
+
+function bestSectorSoFar(
+  laps: Lap[],
+  sector: 1 | 2 | 3,
+): number | null {
+  let best: number | null = null;
+  for (const lap of laps) {
+    const value = sectorValue(lap, sector);
+    if (value === null || value <= 0) {
+      continue;
+    }
+    if (best === null || value < best) {
+      best = value;
+    }
+  }
+  return best;
+}
+
+export function classifySectorTone(
+  sectorTime: number | null,
+  personalBest: number | null,
+  overallBest: number | null,
+): SectorTone {
+  if (sectorTime === null || sectorTime <= 0) {
+    return "none";
+  }
+  if (overallBest !== null && sectorTime <= overallBest + 1e-6) {
+    return "purple";
+  }
+  if (personalBest !== null && sectorTime <= personalBest + 1e-6) {
+    return "green";
+  }
+  return "yellow";
+}
+
+export function buildLastLapSectors(input: {
+  lastLap: Lap | null;
+  driverCompletedLaps: Lap[];
+  sessionCompletedLaps: Lap[];
+}): [SectorTiming, SectorTiming, SectorTiming] {
+  return ([1, 2, 3] as const).map((sector) => {
+    const seconds = input.lastLap
+      ? sectorValue(input.lastLap, sector)
+      : null;
+    const personalBest = bestSectorSoFar(input.driverCompletedLaps, sector);
+    const overallBest = bestSectorSoFar(input.sessionCompletedLaps, sector);
+    return {
+      seconds,
+      tone: classifySectorTone(seconds, personalBest, overallBest),
+    };
+  }) as [SectorTiming, SectorTiming, SectorTiming];
+}
+
+function pitStatsAt(
+  pits: PitStop[],
+  driverId: string,
+  timeSeconds: number,
+): { pitCount: number; lastPitLap: number | null } {
+  let pitCount = 0;
+  let lastPitLap: number | null = null;
+
+  for (const pit of pits) {
+    if (pit.driverId !== driverId || pit.relativeTimeSeconds > timeSeconds) {
+      continue;
+    }
+    pitCount += 1;
+    lastPitLap = pit.lapNumber;
+  }
+
+  return { pitCount, lastPitLap };
+}
+
+function lastCompletedLap(laps: Lap[]): Lap | null {
+  if (laps.length === 0) {
+    return null;
+  }
+  return laps.reduce((best, lap) =>
+    lap.lapNumber > best.lapNumber ? lap : best,
+  );
+}
+
+function bestLapSeconds(laps: Lap[]): number | null {
+  let best: number | null = null;
+  for (const lap of laps) {
+    if (lap.lapTimeSeconds === null) {
+      continue;
+    }
+    if (best === null || lap.lapTimeSeconds < best) {
+      best = lap.lapTimeSeconds;
+    }
+  }
+  return best;
+}
+
+function emptySectors(): [SectorTiming, SectorTiming, SectorTiming] {
+  return [
+    { seconds: null, tone: "none" },
+    { seconds: null, tone: "none" },
+    { seconds: null, tone: "none" },
+  ];
+}
+
 function buildLiveTiming(input: {
   driver: Driver;
   laps: Lap[];
@@ -444,6 +598,11 @@ export function snapshotRaceDashboard(input: {
   const absoluteMs =
     input.dashboard.raceStartMs + input.timeSeconds * 1000;
 
+  const sessionCompletedLaps = completedLapsAt(
+    input.dashboard.sessionLaps,
+    absoluteMs,
+  );
+
   const leaderboard: LeaderboardRow[] = Array.from(latestPositions.values())
     .map((sample) => {
       const driver = driversById.get(sample.driverId);
@@ -462,6 +621,17 @@ export function snapshotRaceDashboard(input: {
         sample.driverId,
         driverLapNumber,
       );
+      const driverCompletedLaps = completedLapsAt(
+        input.dashboard.sessionLaps,
+        absoluteMs,
+        sample.driverId,
+      );
+      const lastLap = lastCompletedLap(driverCompletedLaps);
+      const pits = pitStatsAt(
+        input.dashboard.pits,
+        sample.driverId,
+        input.timeSeconds,
+      );
 
       return {
         position: sample.position,
@@ -470,6 +640,18 @@ export function snapshotRaceDashboard(input: {
         interval: interval?.interval ?? { type: "leader" as const },
         compound: resolveCompoundCode(activeStint?.compound ?? null),
         tyreAgeLaps: tyreAgeAtLap(activeStint, driverLapNumber),
+        lastLapSeconds: lastLap?.lapTimeSeconds ?? null,
+        bestLapSeconds: bestLapSeconds(driverCompletedLaps),
+        pitCount: pits.pitCount,
+        lastPitLap: pits.lastPitLap,
+        sectors: lastLap
+          ? buildLastLapSectors({
+              lastLap,
+              driverCompletedLaps,
+              sessionCompletedLaps,
+            })
+          : emptySectors(),
+        currentLapNumber: driverLapNumber,
       } satisfies LeaderboardRow;
     })
     .filter((row): row is LeaderboardRow => row !== null)

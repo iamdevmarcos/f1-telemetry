@@ -49,7 +49,7 @@ export function NewsArticleView({
             alt=""
             fill
             priority
-            sizes="(max-width: 1400px) 100vw, 1400px"
+            sizes="(max-width: 1560px) 100vw, 1560px"
             className="object-cover"
           />
         </div>
