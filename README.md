@@ -6,9 +6,17 @@ Explore Formula 1 telemetry and a curated news briefing.
 
 ### Screenshots
 
-| Compare lap | Synchronized telemetry | Race replay (battle) |
-| --- | --- | --- |
-| ![Compare lap — sector deltas and driving profile](public/assets/image01.jpg) | ![Compare lap — speed, throttle, brake and gear traces](public/assets/image02.jpg) | ![Race replay — broadcast dashboard and onboard HUD](public/assets/image03.jpg) |
+**Compare lap — sector deltas and driving profile**
+
+![Compare lap — sector deltas and driving profile](public/assets/image01.jpg)
+
+**Compare lap — speed, throttle, brake and gear traces**
+
+![Compare lap — speed, throttle, brake and gear traces](public/assets/image02.jpg)
+
+**Race replay — broadcast dashboard and onboard HUD**
+
+![Race replay — broadcast dashboard and onboard HUD](public/assets/image03.jpg)
 
 ### Videos
 
