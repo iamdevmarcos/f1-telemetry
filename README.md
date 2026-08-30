@@ -2,6 +2,30 @@
 
 Explore Formula 1 telemetry and a curated news briefing.
 
+## Preview
+
+### Screenshots
+
+| Compare lap | Synchronized telemetry | Race replay (battle) |
+| --- | --- | --- |
+| ![Compare lap — sector deltas and driving profile](public/assets/image01.jpg) | ![Compare lap — speed, throttle, brake and gear traces](public/assets/image02.jpg) | ![Race replay — broadcast dashboard and onboard HUD](public/assets/image03.jpg) |
+
+### Videos
+
+**Race replay**
+
+<video src="https://github.com/iamdevmarcos/f1-telemetry/raw/main/public/assets/video01.m4v" controls width="100%">
+  <a href="public/assets/video01.m4v">Race replay demo</a>
+</video>
+
+**Compare lap**
+
+<video src="https://github.com/iamdevmarcos/f1-telemetry/raw/main/public/assets/video02.m4v" controls width="100%">
+  <a href="public/assets/video02.m4v">Compare lap demo</a>
+</video>
+
+Assets live in [`public/assets/`](public/assets/). JPEG/M4V are GitHub-friendly previews; HEIC/MOV are the original captures.
+
 - **Race replay** — full-race map playback with optional head-to-head driver
 - **Compare lap** — synchronized Speed / Throttle / Brake / Gear charts + sector deltas
 - **News** — blog-style F1 headlines with source attribution
